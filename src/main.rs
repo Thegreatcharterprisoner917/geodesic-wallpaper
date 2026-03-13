@@ -71,7 +71,7 @@ fn main() {
 
     let (sw, sh) = screen_size();
     let hwnd = wallpaper::create_wallpaper_hwnd(sw, sh)
-        .expect("Failed to create wallpaper window — is Windows desktop running?");
+        .expect("Failed to create wallpaper window");
 
     let surf = build_surface(&cfg);
     let colors = parse_colors(&cfg);
