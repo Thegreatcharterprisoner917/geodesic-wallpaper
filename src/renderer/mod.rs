@@ -4,7 +4,12 @@ use wgpu::util::DeviceExt;
 use bytemuck::{Pod, Zeroable};
 use crate::trail::TrailVertex;
 use camera::Camera;
-use glam::Mat4;
+use windows::Win32::Foundation::HWND;
+use raw_window_handle::{
+    RawWindowHandle, RawDisplayHandle, Win32WindowHandle, WindowsDisplayHandle,
+    HasWindowHandle, HasDisplayHandle,
+};
+use std::num::NonZeroIsize;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -12,33 +17,20 @@ struct Uniforms {
     view_proj: [[f32; 4]; 4],
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Pod, Zeroable)]
-struct SurfaceVertex {
-    position: [f32; 3],
-}
-
 pub struct Renderer {
     pub surface_config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub wgpu_surface: wgpu::Surface<'static>,
-
-    // Surface mesh pipeline
     surface_pipeline: wgpu::RenderPipeline,
     surface_vbuf: wgpu::Buffer,
     surface_ibuf: wgpu::Buffer,
     surface_index_count: u32,
-
-    // Trail pipeline
     trail_pipeline: wgpu::RenderPipeline,
     trail_vbuf: wgpu::Buffer,
     trail_vbuf_capacity: usize,
-
-    // Uniforms
     uniform_buf: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
-
     pub camera: Camera,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
@@ -46,40 +38,62 @@ pub struct Renderer {
 
 const MAX_TRAIL_VERTS: usize = 100_000;
 
+/// Minimal wrapper so wgpu can get a surface from a raw HWND.
+struct RawHwnd(isize);
+
+impl HasWindowHandle for RawHwnd {
+    fn window_handle(&self) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+        let mut h = Win32WindowHandle::new(NonZeroIsize::new(self.0).unwrap());
+        h.hinstance = None;
+        Ok(unsafe { raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::Win32(h)) })
+    }
+}
+
+impl HasDisplayHandle for RawHwnd {
+    fn display_handle(&self) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+        Ok(unsafe { raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::Windows(WindowsDisplayHandle::new())) })
+    }
+}
+
 impl Renderer {
     pub async fn new(
-        window: std::sync::Arc<winit::window::Window>,
+        hwnd: HWND,
+        width: u32,
+        height: u32,
         mesh_verts: &[[f32; 3]],
         mesh_indices: &[u32],
     ) -> Self {
-        let size = window.inner_size();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let wgpu_surface = instance.create_surface(window).unwrap();
+
+        let raw = RawHwnd(hwnd.0 as isize);
+        let wgpu_surface = unsafe {
+            instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&raw).unwrap()).unwrap()
+        };
+
         let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             compatible_surface: Some(&wgpu_surface),
             force_fallback_adapter: false,
-        }).await.expect("No adapter found");
+        }).await.expect("No adapter");
 
         let (device, queue) = adapter.request_device(&wgpu::DeviceDescriptor {
             required_features: wgpu::Features::empty(),
             required_limits: wgpu::Limits::default(),
             label: None,
             memory_hints: wgpu::MemoryHints::Performance,
-        }, None).await.expect("Device request failed");
+        }, None).await.expect("Device failed");
 
         let caps = wgpu_surface.get_capabilities(&adapter);
-        let format = caps.formats.iter().find(|f| f.is_srgb())
-            .copied().unwrap_or(caps.formats[0]);
+        let format = caps.formats.iter().find(|f| f.is_srgb()).copied().unwrap_or(caps.formats[0]);
 
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
-            width: size.width,
-            height: size.height,
+            width,
+            height,
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: caps.alpha_modes[0],
             view_formats: vec![],
@@ -87,8 +101,7 @@ impl Renderer {
         };
         wgpu_surface.configure(&device, &surface_config);
 
-        let aspect = size.width as f32 / size.height as f32;
-        let camera = Camera::new(aspect);
+        let camera = Camera::new(width as f32 / height as f32);
         let uniforms = Uniforms { view_proj: camera.view_proj().to_cols_array_2d() };
 
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -119,9 +132,9 @@ impl Renderer {
             label: None,
         });
 
-        // Surface mesh pipeline
+        // Surface pipeline
         let surface_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("surface_shader"),
+            label: Some("surface"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/surface.wgsl").into()),
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -136,7 +149,7 @@ impl Renderer {
                 module: &surface_shader,
                 entry_point: "vs_main",
                 buffers: &[wgpu::VertexBufferLayout {
-                    array_stride: std::mem::size_of::<SurfaceVertex>() as u64,
+                    array_stride: (3 * 4) as u64,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &wgpu::vertex_attr_array![0 => Float32x3],
                 }],
@@ -168,7 +181,14 @@ impl Renderer {
             cache: None,
         });
 
-        // Surface vertex buffer
+        // Build wireframe index buffer from triangles
+        let mut line_indices: Vec<u32> = Vec::new();
+        for tri in mesh_indices.chunks(3) {
+            if tri.len() == 3 {
+                line_indices.extend_from_slice(&[tri[0], tri[1], tri[1], tri[2], tri[2], tri[0]]);
+            }
+        }
+
         let surface_verts_bytes: Vec<u8> = mesh_verts.iter()
             .flat_map(|v| bytemuck::bytes_of(v).iter().copied())
             .collect();
@@ -177,13 +197,6 @@ impl Renderer {
             contents: &surface_verts_bytes,
             usage: wgpu::BufferUsages::VERTEX,
         });
-        // Convert triangles to lines for wireframe
-        let mut line_indices: Vec<u32> = Vec::new();
-        for tri in mesh_indices.chunks(3) {
-            if tri.len() == 3 {
-                line_indices.extend_from_slice(&[tri[0], tri[1], tri[1], tri[2], tri[2], tri[0]]);
-            }
-        }
         let surface_index_count = line_indices.len() as u32;
         let surface_ibuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("surface_ibuf"),
@@ -193,7 +206,7 @@ impl Renderer {
 
         // Trail pipeline
         let trail_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("trail_shader"),
+            label: Some("trail"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/trail.wgsl").into()),
         });
         let trail_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -242,10 +255,7 @@ impl Renderer {
             mapped_at_creation: false,
         });
 
-        // Depth texture
-        let (depth_texture, depth_view) = Self::create_depth(
-            &device, size.width, size.height
-        );
+        let (depth_texture, depth_view) = Self::make_depth(&device, width, height);
 
         Renderer {
             surface_config,
@@ -267,7 +277,7 @@ impl Renderer {
         }
     }
 
-    fn create_depth(device: &wgpu::Device, w: u32, h: u32) -> (wgpu::Texture, wgpu::TextureView) {
+    fn make_depth(device: &wgpu::Device, w: u32, h: u32) -> (wgpu::Texture, wgpu::TextureView) {
         let tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth"),
             size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
@@ -287,34 +297,28 @@ impl Renderer {
         self.surface_config.height = height;
         self.wgpu_surface.configure(&self.device, &self.surface_config);
         self.camera.aspect = width as f32 / height as f32;
-        let (dt, dv) = Self::create_depth(&self.device, width, height);
+        let (dt, dv) = Self::make_depth(&self.device, width, height);
         self.depth_texture = dt;
         self.depth_view = dv;
     }
 
     pub fn render(&mut self, trail_verts: &[TrailVertex], trail_segment_lengths: &[usize]) {
-        // Update uniforms
         let uniforms = Uniforms { view_proj: self.camera.view_proj().to_cols_array_2d() };
         self.queue.write_buffer(&self.uniform_buf, 0, bytemuck::bytes_of(&uniforms));
 
-        // Upload trail vertices
         if !trail_verts.is_empty() {
-            let to_write = trail_verts.len().min(self.trail_vbuf_capacity);
-            self.queue.write_buffer(
-                &self.trail_vbuf, 0,
-                bytemuck::cast_slice(&trail_verts[..to_write]),
-            );
+            let n = trail_verts.len().min(self.trail_vbuf_capacity);
+            self.queue.write_buffer(&self.trail_vbuf, 0, bytemuck::cast_slice(&trail_verts[..n]));
         }
 
         let frame = match self.wgpu_surface.get_current_texture() {
             Ok(f) => f,
-            Err(e) => { log::warn!("Surface error: {e}"); return; }
+            Err(e) => { log::warn!("Surface err: {e}"); return; }
         };
         let view = frame.texture.create_view(&Default::default());
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-
+        let mut enc = self.device.create_command_encoder(&Default::default());
         {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let mut rp = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -334,31 +338,26 @@ impl Renderer {
                 }),
                 ..Default::default()
             });
+            rp.set_pipeline(&self.surface_pipeline);
+            rp.set_bind_group(0, &self.bind_group, &[]);
+            rp.set_vertex_buffer(0, self.surface_vbuf.slice(..));
+            rp.set_index_buffer(self.surface_ibuf.slice(..), wgpu::IndexFormat::Uint32);
+            rp.draw_indexed(0..self.surface_index_count, 0, 0..1);
 
-            // Draw surface wireframe
-            rpass.set_pipeline(&self.surface_pipeline);
-            rpass.set_bind_group(0, &self.bind_group, &[]);
-            rpass.set_vertex_buffer(0, self.surface_vbuf.slice(..));
-            rpass.set_index_buffer(self.surface_ibuf.slice(..), wgpu::IndexFormat::Uint32);
-            rpass.draw_indexed(0..self.surface_index_count, 0, 0..1);
-
-            // Draw trails
-            rpass.set_pipeline(&self.trail_pipeline);
-            rpass.set_bind_group(0, &self.bind_group, &[]);
-            rpass.set_vertex_buffer(0, self.trail_vbuf.slice(..));
-
+            rp.set_pipeline(&self.trail_pipeline);
+            rp.set_bind_group(0, &self.bind_group, &[]);
+            rp.set_vertex_buffer(0, self.trail_vbuf.slice(..));
             let mut offset = 0u32;
             for &len in trail_segment_lengths {
                 if len >= 2 {
                     let end = (offset + len as u32).min(self.trail_vbuf_capacity as u32);
-                    rpass.draw(offset..end, 0..1);
+                    rp.draw(offset..end, 0..1);
                 }
                 offset += len as u32;
                 if offset as usize >= self.trail_vbuf_capacity { break; }
             }
         }
-
-        self.queue.submit(std::iter::once(encoder.finish()));
+        self.queue.submit(std::iter::once(enc.finish()));
         frame.present();
     }
 }
