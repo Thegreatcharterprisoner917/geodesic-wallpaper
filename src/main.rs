@@ -107,7 +107,9 @@ impl ApplicationHandler for App {
             if let Ok(handle) = window.window_handle() {
                 if let RawWindowHandle::Win32(h) = handle.as_raw() {
                     let hwnd = HWND(h.hwnd.get() as _);
-                    wallpaper::attach_to_desktop(hwnd);
+                    let w = monitor_size.width as i32;
+                    let h2 = monitor_size.height as i32;
+                    wallpaper::attach_to_desktop(hwnd, w, h2);
                 }
             }
         }
