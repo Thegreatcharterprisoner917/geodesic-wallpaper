@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Run cargo check, clippy, and fmt on both Linux and Windows.
+  # Full compilation with wgpu requires a GPU / display; --check and --no-run
+  # keep CI headless while still catching type errors and lint violations.
+  check:
+    name: Check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable with rustfmt and clippy
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-check-
+
+      # cargo check catches type errors without linking or running the binary.
+      # --all-targets includes lib, bins, tests, and examples.
+      - name: cargo check --all-targets
+        run: cargo check --all-targets
+
+      # Deny all clippy warnings.
+      - name: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Verify that all source files are formatted correctly.
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check

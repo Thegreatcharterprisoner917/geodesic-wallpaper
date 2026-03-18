@@ -1,7 +1,24 @@
 [package]
 name = "geodesic-wallpaper"
-version = "0.1.0"
+version = "1.1.0"
 edition = "2021"
+rust-version = "1.75"
+description = "Real-time geodesic flow live desktop wallpaper for Windows, powered by wgpu and RK4 integration on analytic Riemannian surfaces."
+license = "MIT"
+repository = "https://github.com/Mattbusel/geodesic-wallpaper"
+homepage = "https://github.com/Mattbusel/geodesic-wallpaper"
+readme = "README.md"
+keywords = ["wallpaper", "geodesic", "wgpu", "windows", "differential-geometry"]
+categories = ["graphics", "visualization", "rendering"]
+exclude = [".github/", "*.png", "*.gif"]
+
+[package.metadata]
+msrv = "1.75.0"
+platform = "windows"
+
+[lib]
+name = "geodesic_wallpaper"
+path = "src/lib.rs"
 
 [[bin]]
 name = "geodesic-wallpaper"
@@ -26,7 +43,16 @@ log = "0.4"
 env_logger = "0.11"
 pollster = "0.3"
 raw-window-handle = "0.6"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+tempfile = "3"
+rand = { version = "0.8", features = ["std", "std_rng"] }
 
 [profile.release]
 opt-level = 3
 lto = true
+strip = true
+codegen-units = 1

@@ -1,152 +1,191 @@
-# Geodesic Flow — Live Desktop Wallpaper
+# Geodesic Flow -- Live Desktop Wallpaper
 
-A real-time animated Windows desktop wallpaper that renders families of **geodesics** — the shortest paths on curved surfaces — flowing across a torus, sphere, or saddle, leaving luminous fading trails behind.
+[![CI](https://github.com/Mattbusel/geodesic-wallpaper/actions/workflows/ci.yml/badge.svg)](https://github.com/Mattbusel/geodesic-wallpaper/actions/workflows/ci.yml)
+[![Release](https://github.com/Mattbusel/geodesic-wallpaper/actions/workflows/release.yml/badge.svg)](https://github.com/Mattbusel/geodesic-wallpaper/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Rust 1.75+](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 
-Built with **Rust**, **wgpu**, and proper differential geometry. Runs silently behind your desktop icons via the Win32 WorkerW trick.
+A real-time animated desktop wallpaper for Windows that renders families of
+geodesics flowing across parameterized surfaces. Geodesics are integrated with
+a fourth-order Runge-Kutta (RK4) scheme using analytically computed Christoffel
+symbols. The window sits below all application windows via a Win32
+WM_WINDOWPOSCHANGING hook, leaving desktop icons fully accessible.
 
----
-
-## Preview
-
-> Glowing geodesic trails spiral across a dark torus, their colors shifting from electric blue to soft gold as they trace paths dictated by the surface's curvature.
-
----
-
-## Download (Windows .exe)
-
-Head to the [**Releases**](../../releases/latest) page and download `geodesic-wallpaper.exe`. No install needed — just run it.
-
-> **Requirements:** Windows 10/11, a GPU that supports DirectX 12, Vulkan, or Metal (any modern GPU works).
+Built with Rust, wgpu (DirectX 12 / Vulkan / Metal), and the windows crate for
+Win32 integration.
 
 ---
 
-## What It Does
+## Download
 
-- Renders **N geodesics** (default 30) simultaneously on a parameterized surface embedded in 3D
-- Each geodesic is integrated using **RK4** on the geodesic equation:
+Head to the [Releases](../../releases/latest) page and download
+`geodesic-wallpaper-windows.zip`. Extract it alongside `config.toml` and
+run `geodesic-wallpaper.exe`. No installer required.
 
-  ```
-  d²xᵏ/dt² + Γᵏᵢⱼ (dxⁱ/dt)(dxʲ/dt) = 0
-  ```
-
-  where `Γᵏᵢⱼ` are the **Christoffel symbols** computed analytically from the surface's metric tensor
-
-- Trails **fade quadratically** from bright (head) to transparent (tail) over a configurable number of frames
-- Camera **slowly orbits** the surface (one full revolution every ~10 minutes by default)
-- The window lives **behind your desktop icons** — no taskbar entry, no chrome, just the animation
-- **Hot-reloads** `config.toml` while running — tweak parameters live
-
----
-
-## Supported Surfaces
-
-| Surface | Geometry | Behavior |
-|---|---|---|
-| `torus` | Mixed curvature | Geodesics diverge on the inner rim, converge on the outer |
-| `sphere` | Constant positive | All geodesics are great circles |
-| `saddle` | Negative curvature | Geodesics exponentially diverge |
-
----
-
-## Getting Started
-
-### Option A — Download the .exe (easiest)
-
-1. Go to [Releases](../../releases/latest)
-2. Download `geodesic-wallpaper.exe`
-3. Place it in a folder alongside `config.toml` (see below)
-4. Double-click to run — your desktop wallpaper activates instantly
-5. Press `Ctrl+C` in the terminal or close the window to stop
-
-### Option B — Build from source
-
-**Prerequisites:** [Rust](https://rustup.rs/) (stable, 1.75+), Windows 10/11
-
-```powershell
-git clone https://github.com/Mattbusel/geodesic-wallpaper.git
-cd geodesic-wallpaper
-cargo run --release
-```
-
----
-
-## Configuration
-
-Edit `config.toml` in the same directory as the exe. Changes apply **instantly** (hot-reload — no restart needed).
-
-```toml
-# Surface to render: "torus", "sphere", or "saddle"
-surface = "torus"
-
-# Number of simultaneous geodesics
-num_geodesics = 30
-
-# How many frames a trail persists before fading out
-trail_length = 300
-
-# Camera orbit speed in radians/second (0.001047 ≈ 1 rev per 10 min)
-rotation_speed = 0.001047
-
-# Trail colors (hex). Geodesics cycle through these.
-color_palette = ["#4488FF", "#88DDFF", "#FFD700", "#88FF88", "#FF88CC"]
-
-# Torus geometry
-torus_R = 2.0   # major radius (center to tube center)
-torus_r = 0.7   # minor radius (tube radius)
-```
+**Requirements:** Windows 10 or 11, any GPU with DirectX 12 or Vulkan support.
 
 ---
 
 ## Architecture
 
 ```
-src/
-├── main.rs              # winit app loop, frame limiter, geodesic respawn
-├── wallpaper.rs         # Win32 Progman/WorkerW integration (all unsafe isolated here)
-├── config.rs            # TOML config + file-watcher hot reload
-├── geodesic.rs          # RK4 integrator for the geodesic ODE
-├── trail.rs             # Ring buffer of trail vertices with fade
-├── surface/
-│   ├── mod.rs           # Surface trait (position, metric, Christoffel, mesh)
-│   ├── torus.rs         # Analytic Christoffel symbols for torus
-│   ├── sphere.rs        # Analytic Christoffel symbols for sphere
-│   └── saddle.rs        # Saddle (hyperbolic paraboloid)
-└── renderer/
-    ├── mod.rs           # wgpu render pipelines, surface wireframe + trail draws
-    ├── camera.rs        # Slowly orbiting perspective camera
-    └── shaders/
-        ├── surface.wgsl # Dim wireframe mesh
-        └── trail.wgsl   # Glow-on-alpha trail lines
+config.toml
+    |
+    v
++--------+     hot-reload      +------------------+
+| Config | -----------------> | SharedConfig      |
++--------+   (notify watcher) | Arc<RwLock<...>>  |
+                               +------------------+
+                                        |
+                                        v
+                        +-----------------------------+
+                        | GeodesicEngine              |
+                        | - Surface trait             |
+                        |   (Torus / Sphere / Saddle) |
+                        | - Geodesic: RK4 integrator  |
+                        | - Christoffel symbols       |
+                        +-----------------------------+
+                                        |
+                                        v
+                        +-----------------------------+
+                        | TrailRenderer               |
+                        | - TrailBuffer (ring buffer) |
+                        | - quadratic alpha fade      |
+                        +-----------------------------+
+                                        |
+                                        v
+                              +-----------------+
+                              | wgpu pipelines  |
+                              | (surface mesh + |
+                              |  trail lines)   |
+                              +-----------------+
+                                        |
+                                        v
+                        +-------------------------------+
+                        | Win32 WorkerW window          |
+                        | (HWND_BOTTOM, WS_POPUP,       |
+                        |  WM_WINDOWPOSCHANGING locked) |
+                        +-------------------------------+
 ```
 
 ---
 
-## Performance
+## Quickstart
 
-Targeting **< 5% GPU utilization** at 1080p/30fps. This is a background wallpaper — it stays out of your way.
+**Requirements:** Rust stable (1.75 or later), Windows 10 or 11, a GPU with
+DirectX 12, Vulkan, or Metal support.
 
-- Christoffel symbols computed analytically (no finite differences)
-- Trail vertices in a **ring buffer** — no growing allocations
-- Frame-limited to 30fps with `thread::sleep`
-- Low-power GPU adapter preference via wgpu
+```powershell
+git clone https://github.com/Mattbusel/geodesic-wallpaper.git
+cd geodesic-wallpaper
+cargo build --release
+.\target\release\geodesic-wallpaper.exe
+```
+
+Place `config.toml` in the same directory as the executable. The application
+reloads the file automatically whenever it changes on disk. Press Ctrl+C in the
+terminal or close the process to stop.
 
 ---
 
-## Tech Stack
+## Configuration reference
 
-- **Rust** — memory safety, zero-cost abstractions
-- **wgpu** — cross-backend GPU rendering (DX12 / Vulkan / Metal)
-- **winit** — cross-platform windowing
-- **windows crate** — Win32 FFI for WorkerW desktop integration
-- **glam** — fast f32 vector/matrix math
-- **notify** — filesystem watcher for hot config reload
+All fields are optional. Missing fields revert to the defaults listed below.
+
+```toml
+# Surface to render.
+# Accepted values: "torus", "sphere", "saddle".
+# Any other value falls back to "torus".
+# Default: "torus"
+surface = "torus"
+
+# Number of simultaneous geodesic curves.
+# Default: 30
+num_geodesics = 30
+
+# Number of frames a trail persists before being respawned.
+# Default: 300
+trail_length = 300
+
+# Camera orbit angular speed in radians per second.
+# 0.001047 is approximately one full revolution every 100 minutes.
+# Default: 0.001047
+rotation_speed = 0.001047
+
+# Trail color palette as CSS hex strings (with or without leading '#').
+# Geodesics cycle through the list in order.
+# Default: five entries from blue to gold to pink.
+color_palette = ["#4488FF", "#88DDFF", "#FFD700", "#88FF88", "#FF88CC"]
+
+# Torus major radius: distance from the center of the torus to the center
+# of the tube.
+# Default: 2.0
+torus_R = 2.0
+
+# Torus minor radius: radius of the tube.
+# Default: 0.7
+torus_r = 0.7
+
+# RK4 integration time step in seconds per frame.
+# Values above 0.02 can cause visible trajectory drift on a small torus.
+# Default: 0.016
+time_step = 0.016
+```
+
+---
+
+## How it works
+
+A geodesic on a Riemannian surface is a curve whose acceleration has no
+tangential component; equivalently, it satisfies the geodesic equation
+d^2x^k/dt^2 + Gamma^k_ij (dx^i/dt)(dx^j/dt) = 0, where Gamma^k_ij are the
+Christoffel symbols of the metric. Each symbol is computed analytically from
+the first and second fundamental forms of the surface, avoiding finite-difference
+approximations and the numerical noise they introduce. For the torus the metric
+is diagonal (the parameterization is orthogonal), which collapses the Christoffel
+computation to two non-zero components. The sphere and saddle use the full
+symmetric formula.
+
+The ODE is advanced with a classical fourth-order Runge-Kutta integrator. At
+each frame the integrator evaluates the Christoffel symbols at four intermediate
+positions and combines the results with the standard 1/6-2/6-2/6-1/6 weights.
+After each step the velocity is renormalized to unit metric speed
+(g_ij du^i du^j = 1) to suppress the slow drift caused by floating-point
+truncation over hundreds of frames. This is correct because the geodesic
+equation preserves metric speed exactly; renormalization merely restores the
+invariant that the integrator breaks weakly.
+
+Each geodesic leaves a trail stored in a fixed-capacity ring buffer. When a new
+position is pushed, the oldest is silently overwritten. At render time the buffer
+is iterated from oldest to newest and each vertex is assigned an alpha value
+equal to (i / N)^2, producing a quadratic fade from transparent at the tail to
+opaque at the head. The ring buffer never grows or reallocates after
+initialization, so the per-frame allocation pressure is zero.
+
+---
+
+## Supported surfaces
+
+| Surface | Curvature | Behavior |
+|---------|-----------|----------|
+| torus   | Mixed (positive outer rim, negative inner rim) | Geodesics diverge on the inner rim and focus on the outer |
+| sphere  | Constant positive | All geodesics are great circles |
+| saddle  | Constant negative | Geodesics diverge exponentially |
+
+---
+
+## Contributing
+
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b my-feature`.
+3. Ensure `cargo fmt`, `cargo clippy -- -D warnings`, and `cargo test` all pass.
+4. Open a pull request against `master`.
+
+CI enforces formatting, Clippy warnings-as-errors, the full test suite, and a
+release build before merging.
 
 ---
 
 ## License
 
-MIT
-
----
-
-#rust #wgpu #windows #desktop-wallpaper #geodesics #differential-geometry #riemannian-geometry #live-wallpaper #generative-art #math-visualization #graphics #gpu #shader #torus #winit
+MIT -- see [LICENSE](LICENSE) for details.

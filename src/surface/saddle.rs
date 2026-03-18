@@ -1,23 +1,39 @@
+//! Hyperbolic paraboloid (saddle) surface with analytic Christoffel symbols.
+
 use super::Surface;
 use glam::Vec3;
 
-/// Hyperbolic paraboloid (saddle): z = (x² - y²) / a
-/// u ∈ [-2, 2], v ∈ [-2, 2]
+/// Hyperbolic paraboloid (saddle surface) with the embedding `z = (u^2 - v^2) / scale`.
+///
+/// Parameter domain: `u, v in [-2, 2]`. This surface has everywhere negative
+/// Gaussian curvature, causing geodesics to diverge exponentially.
+///
+/// The Christoffel symbols are computed analytically from the metric tensor,
+/// which is not diagonal due to the off-diagonal coupling terms from `g_01`.
 pub struct Saddle {
+    /// Denominator in the saddle equation `z = (u^2 - v^2) / scale`.
+    ///
+    /// Larger values flatten the saddle; smaller values make it steeper.
     pub scale: f32,
 }
 
 impl Saddle {
+    /// Construct a saddle surface with the given `scale` parameter.
+    ///
+    /// A `scale` of `2.0` produces a moderate saddle suitable for wallpaper use.
     pub fn new(scale: f32) -> Self { Self { scale } }
 
+    /// Compute the 3D embedding `(u, v, (u²-v²)/scale)`.
     fn embed(&self, u: f32, v: f32) -> Vec3 {
         Vec3::new(u, v, (u * u - v * v) / self.scale)
     }
 
+    /// First partial derivative `∂φ/∂u` — depends only on `u`.
     fn d_du(&self, u: f32, _v: f32) -> Vec3 {
         Vec3::new(1.0, 0.0, 2.0 * u / self.scale)
     }
 
+    /// First partial derivative `∂φ/∂v` — depends only on `v`.
     fn d_dv(&self, _u: f32, v: f32) -> Vec3 {
         Vec3::new(0.0, 1.0, -2.0 * v / self.scale)
     }
@@ -130,5 +146,107 @@ impl Surface for Saddle {
             }
         }
         (verts, indices)
+    }
+}
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn position_at_origin_is_zero() {
+        let s = Saddle::new(2.0);
+        let p = s.position(0.0, 0.0);
+        assert!(p.x.abs() < 1e-6);
+        assert!(p.y.abs() < 1e-6);
+        assert!(p.z.abs() < 1e-6);
+    }
+
+    #[test]
+    fn position_formula_correct() {
+        // z = (u² - v²) / scale
+        let s = Saddle::new(2.0);
+        let p = s.position(1.0, 1.0);
+        assert!((p.x - 1.0).abs() < 1e-6);
+        assert!((p.y - 1.0).abs() < 1e-6);
+        assert!(p.z.abs() < 1e-6, "z = {} (expected 0 for u=v=1)", p.z);
+
+        let p2 = s.position(2.0, 0.0);
+        assert!((p2.z - 4.0 / 2.0).abs() < 1e-6, "z={}", p2.z);
+    }
+
+    #[test]
+    fn metric_at_origin_is_identity() {
+        // At u=0,v=0: g_00=1, g_01=0, g_11=1.
+        let s = Saddle::new(2.0);
+        let g = s.metric(0.0, 0.0);
+        assert!((g[0][0] - 1.0).abs() < 1e-6);
+        assert!(g[0][1].abs() < 1e-6);
+        assert!((g[1][1] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn metric_is_symmetric() {
+        let s = Saddle::new(2.0);
+        let g = s.metric(0.5, 1.2);
+        assert!((g[0][1] - g[1][0]).abs() < 1e-6);
+    }
+
+    #[test]
+    fn wrap_clamps_to_bounds() {
+        let s = Saddle::new(2.0);
+        let (u, v) = s.wrap(5.0, -5.0);
+        assert!((u - 2.0).abs() < 1e-6, "u={u}");
+        assert!((v + 2.0).abs() < 1e-6, "v={v}");
+    }
+
+    #[test]
+    fn christoffel_symmetry() {
+        let s = Saddle::new(2.0);
+        let g = s.christoffel(0.4, 0.8);
+        for k in 0..2 {
+            assert!((g[k][0][1] - g[k][1][0]).abs() < 1e-5,
+                "Γ^{k}_01 != Γ^{k}_10");
+        }
+    }
+
+    #[test]
+    fn christoffel_at_origin_is_zero() {
+        // At u=0,v=0: all metric derivatives vanish → Christoffels all zero.
+        let s = Saddle::new(2.0);
+        let g = s.christoffel(0.0, 0.0);
+        for k in 0..2 {
+            for i in 0..2 {
+                for j in 0..2 {
+                    assert!(g[k][i][j].abs() < 1e-5,
+                        "Γ^{k}_{i}{j}={} at origin", g[k][i][j]);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn normal_is_unit() {
+        let s = Saddle::new(2.0);
+        let n = s.normal(0.5, 0.5);
+        assert!((n.length() - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn mesh_vertex_count() {
+        let s = Saddle::new(2.0);
+        let (verts, indices) = s.mesh_vertices(6, 6);
+        assert_eq!(verts.len(), 7 * 7);
+        assert_eq!(indices.len(), 6 * 6 * 6);
+    }
+
+    #[test]
+    fn near_zero_scale_does_not_panic() {
+        let s = Saddle::new(0.0001);
+        let p = s.position(0.1, 0.1);
+        // Position will be finite even with a tiny scale.
+        assert!(p.x.is_finite());
     }
 }

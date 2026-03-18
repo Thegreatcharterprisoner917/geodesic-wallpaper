@@ -1,9 +1,16 @@
-mod config;
-mod surface;
-mod geodesic;
-mod trail;
-mod renderer;
-mod wallpaper;
+//! Entry point for geodesic-wallpaper.
+//!
+//! Initialises logging, loads configuration, spawns the hot-reload watcher,
+//! creates the Win32 wallpaper window, builds the wgpu renderer, and runs the
+//! main message/render loop.
+
+use geodesic_wallpaper::config::{Config, SharedConfig};
+use geodesic_wallpaper::error::GeodesicError;
+use geodesic_wallpaper::surface::{Surface, torus::Torus, sphere::Sphere, saddle::Saddle};
+use geodesic_wallpaper::geodesic::Geodesic;
+use geodesic_wallpaper::trail::TrailBuffer;
+use geodesic_wallpaper::renderer::Renderer;
+use geodesic_wallpaper::wallpaper;
 
 use std::sync::{Arc, RwLock};
 use std::path::PathBuf;
@@ -13,12 +20,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     PeekMessageW, TranslateMessage, DispatchMessageW, MSG, PM_REMOVE,
 };
 
-use config::{Config, SharedConfig};
-use surface::{Surface, torus::Torus, sphere::Sphere, saddle::Saddle};
-use geodesic::Geodesic;
-use trail::TrailBuffer;
-use renderer::Renderer;
-
+/// Construct the surface implementation selected in `cfg`.
 fn build_surface(cfg: &Config) -> Box<dyn Surface> {
     match cfg.surface.as_str() {
         "sphere" => Box::new(Sphere::new(2.5)),
@@ -27,10 +29,14 @@ fn build_surface(cfg: &Config) -> Box<dyn Surface> {
     }
 }
 
+/// Convert the hex colour palette from config into `[f32; 4]` RGBA values.
 fn parse_colors(cfg: &Config) -> Vec<[f32; 4]> {
     cfg.color_palette.iter().map(|s| Config::parse_color(s)).collect()
 }
 
+/// Query the primary monitor resolution via Win32.
+///
+/// Returns `(1920, 1080)` as a safe fallback if the system call fails.
 fn screen_size() -> (i32, i32) {
     unsafe {
         use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
@@ -43,18 +49,35 @@ fn screen_size() -> (i32, i32) {
 fn main() {
     env_logger::builder().filter_level(log::LevelFilter::Info).init();
 
+    if let Err(e) = run() {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
+    }
+}
+
+/// Application body returning a typed error on failure.
+///
+/// Separated from `main` so that `?` propagation can be used throughout
+/// and the error message is printed cleanly without a Rust backtrace dump.
+fn run() -> Result<(), GeodesicError> {
     let config_path = PathBuf::from("config.toml");
     let cfg = Config::load(&config_path);
     let shared_cfg: SharedConfig = Arc::new(RwLock::new(cfg.clone()));
 
-    // Hot-reload watcher
+    // Spawn hot-reload watcher thread.
     {
         let shared = shared_cfg.clone();
         let path = config_path.clone();
         std::thread::spawn(move || {
             use notify::{Watcher, RecursiveMode, recommended_watcher};
             let (tx, rx) = std::sync::mpsc::channel();
-            let mut watcher = recommended_watcher(move |res| { let _ = tx.send(res); }).unwrap();
+            let mut watcher = match recommended_watcher(move |res| { let _ = tx.send(res); }) {
+                Ok(w) => w,
+                Err(e) => {
+                    log::warn!("Failed to start config watcher: {e}");
+                    return;
+                }
+            };
             let _ = watcher.watch(&path, RecursiveMode::NonRecursive);
             loop {
                 if rx.recv().is_ok() {
@@ -71,7 +94,7 @@ fn main() {
 
     let (sw, sh) = screen_size();
     let hwnd = wallpaper::create_wallpaper_hwnd(sw, sh)
-        .expect("Failed to create wallpaper window");
+        .ok_or_else(|| GeodesicError::window("Failed to create wallpaper window"))?;
 
     let surf = build_surface(&cfg);
     let colors = parse_colors(&cfg);
@@ -82,7 +105,7 @@ fn main() {
         sw as u32, sh as u32,
         &mesh_verts,
         &mesh_indices,
-    ));
+    ))?;
 
     let mut rng = StdRng::from_entropy();
     let mut geodesics: Vec<Geodesic> = Vec::new();
@@ -91,7 +114,7 @@ fn main() {
     for i in 0..cfg.num_geodesics {
         let (u, v) = surf.random_position(&mut rng);
         let (du, dv) = surf.random_tangent(u, v, &mut rng);
-        let ci = i % colors.len();
+        let ci = i % colors.len().max(1);
         geodesics.push(Geodesic::new(u, v, du, dv, cfg.trail_length, ci));
         trails.push(TrailBuffer::new(cfg.trail_length, colors[ci]));
     }
@@ -104,21 +127,21 @@ fn main() {
     let target_frame = std::time::Duration::from_millis(33);
     let mut last_frame = std::time::Instant::now();
 
-    // Raw Win32 message loop
+    // Raw Win32 message loop.
     loop {
-        // Drain pending messages
+        // Drain pending messages.
         unsafe {
             let mut msg = MSG::default();
             while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
                 if msg.message == 0x0012 { // WM_QUIT
-                    return;
+                    return Ok(());
                 }
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
         }
 
-        // Frame rate limit
+        // Frame rate limit.
         let now = std::time::Instant::now();
         if now.duration_since(last_frame) < target_frame {
             std::thread::sleep(std::time::Duration::from_millis(1));
@@ -126,11 +149,11 @@ fn main() {
         }
         last_frame = std::time::Instant::now();
 
-        // Orbit camera
+        // Orbit camera.
         let rot = shared_cfg.read().map(|c| c.rotation_speed).unwrap_or(0.001047);
         renderer.camera.orbit(rot * dt);
 
-        // Step geodesics
+        // Step geodesics.
         for (i, geo) in geodesics.iter_mut().enumerate() {
             if !geo.alive { continue; }
             let pos = surf.position(geo.u, geo.v);
@@ -138,20 +161,20 @@ fn main() {
             geo.step(surf.as_ref(), dt);
         }
 
-        // Respawn dead
+        // Respawn dead geodesics.
         for (i, geo) in geodesics.iter_mut().enumerate() {
             if !geo.alive {
                 let (u, v) = surf.random_position(&mut rng);
                 let (du, dv) = surf.random_tangent(u, v, &mut rng);
                 let tl = shared_cfg.read().map(|c| c.trail_length).unwrap_or(300);
-                let ci = i % colors.len();
+                let ci = i % colors.len().max(1);
                 *geo = Geodesic::new(u, v, du, dv, tl, ci);
                 trails[i].clear();
                 trails[i].color = colors[ci];
             }
         }
 
-        // Collect trail verts
+        // Collect trail vertices.
         let mut all_verts = Vec::new();
         let mut seg_lens = Vec::new();
         for trail in &trails {
