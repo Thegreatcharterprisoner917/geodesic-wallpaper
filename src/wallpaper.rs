@@ -44,7 +44,7 @@ pub fn create_wallpaper_hwnd(width: i32, height: i32) -> Option<HWND> {
             None, None, hinstance, None,
         ) {
             Ok(h) => h,
-            Err(e) => { log::error!("CreateWindowExW failed: {e}"); return None; }
+            Err(e) => { tracing::error!("CreateWindowExW failed: {e}"); return None; }
         };
         if hwnd_null(hwnd) { return None; }
 
@@ -53,7 +53,7 @@ pub fn create_wallpaper_hwnd(width: i32, height: i32) -> Option<HWND> {
         let _ = ShowWindow(hwnd, SW_SHOW);
         let _ = UpdateWindow(hwnd);
 
-        log::info!("Wallpaper window created: {:?}", hwnd);
+        tracing::info!("Wallpaper window created: {:?}", hwnd);
         Some(hwnd)
     }
 }

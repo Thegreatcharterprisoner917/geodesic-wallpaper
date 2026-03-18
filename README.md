@@ -28,6 +28,18 @@ run `geodesic-wallpaper.exe`. No installer required.
 
 ## Architecture
 
+| Module | File | Responsibility |
+|--------|------|----------------|
+| `config` | `src/config.rs` | Load and hot-reload `config.toml`; parse CSS hex colours |
+| `error` | `src/error.rs` | Typed error enum covering all subsystems |
+| `surface` | `src/surface/` | `Surface` trait + `Torus`, `Sphere`, `Saddle` implementations |
+| `geodesic` | `src/geodesic.rs` | RK4 integrator for the geodesic ODE using Christoffel symbols |
+| `trail` | `src/trail.rs` | Fixed-capacity ring buffer with quadratic alpha fade |
+| `renderer` | `src/renderer/` | wgpu render pipelines (surface wireframe + trail lines) |
+| `renderer::camera` | `src/renderer/camera.rs` | Orbiting perspective camera |
+| `wallpaper` | `src/wallpaper.rs` | Win32 borderless window pinned below all app windows |
+| `main` | `src/main.rs` | Application entry point, message loop, hot-reload watcher |
+
 ```
 config.toml
     |
@@ -70,7 +82,7 @@ config.toml
 
 ---
 
-## Quickstart
+## Building from source
 
 **Requirements:** Rust stable (1.75 or later), Windows 10 or 11, a GPU with
 DirectX 12, Vulkan, or Metal support.
@@ -86,11 +98,28 @@ Place `config.toml` in the same directory as the executable. The application
 reloads the file automatically whenever it changes on disk. Press Ctrl+C in the
 terminal or close the process to stop.
 
+To run tests (no GPU required):
+
+```powershell
+cargo test --lib
+```
+
 ---
 
 ## Configuration reference
 
 All fields are optional. Missing fields revert to the defaults listed below.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `surface` | string | `"torus"` | Surface to render: `"torus"`, `"sphere"`, or `"saddle"` |
+| `num_geodesics` | integer | `30` | Number of simultaneous geodesic curves |
+| `trail_length` | integer | `300` | Frames a trail persists before respawning |
+| `rotation_speed` | float | `0.001047` | Camera orbit speed in radians per second |
+| `color_palette` | string[] | 5 entries | CSS hex colour strings cycled across geodesics |
+| `torus_R` | float | `2.0` | Torus major radius (centre to tube centre) |
+| `torus_r` | float | `0.7` | Torus minor radius (tube radius) |
+| `time_step` | float | `0.016` | RK4 integration timestep in seconds per frame |
 
 ```toml
 # Surface to render.
