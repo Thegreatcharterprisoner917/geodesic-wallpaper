@@ -1,12 +1,11 @@
 //! Integration tests for geodesic-wallpaper.
+#![allow(clippy::needless_range_loop, clippy::unwrap_used)]
 //!
 //! Tests cover:
 //! - Geodesic integration correctness on flat torus and sphere.
 //! - RK4 conservation of the metric speed invariant.
 //! - Trail ring-buffer correctness and fade logic.
 //! - Config parsing edge cases.
-
-use std::f32::consts::TAU;
 
 // ---------------------------------------------------------------------------
 // Helpers -- inline minimal surface implementations so tests do not depend
@@ -41,17 +40,19 @@ impl FlatTorus {
         };
         let (k1u, k1v, k1du, k1dv) = deriv(u, v, du, dv);
         let (k2u, k2v, k2du, k2dv) = deriv(
-            u + 0.5 * dt * k1u, v + 0.5 * dt * k1v,
-            du + 0.5 * dt * k1du, dv + 0.5 * dt * k1dv,
+            u + 0.5 * dt * k1u,
+            v + 0.5 * dt * k1v,
+            du + 0.5 * dt * k1du,
+            dv + 0.5 * dt * k1dv,
         );
         let (k3u, k3v, k3du, k3dv) = deriv(
-            u + 0.5 * dt * k2u, v + 0.5 * dt * k2v,
-            du + 0.5 * dt * k2du, dv + 0.5 * dt * k2dv,
+            u + 0.5 * dt * k2u,
+            v + 0.5 * dt * k2v,
+            du + 0.5 * dt * k2du,
+            dv + 0.5 * dt * k2dv,
         );
-        let (k4u, k4v, k4du, k4dv) = deriv(
-            u + dt * k3u, v + dt * k3v,
-            du + dt * k3du, dv + dt * k3dv,
-        );
+        let (k4u, k4v, k4du, k4dv) =
+            deriv(u + dt * k3u, v + dt * k3v, du + dt * k3du, dv + dt * k3dv);
         let new_u = u + dt / 6.0 * (k1u + 2.0 * k2u + 2.0 * k3u + k4u);
         let new_v = v + dt / 6.0 * (k1v + 2.0 * k2v + 2.0 * k3v + k4v);
         let new_du = du + dt / 6.0 * (k1du + 2.0 * k2du + 2.0 * k3du + k4du);
@@ -176,7 +177,10 @@ impl SimpleTorus {
 #[test]
 fn torus_christoffel_is_symmetric_in_lower_indices() {
     // For any torsion-free connection, Gamma^k_ij = Gamma^k_ji.
-    let torus = SimpleTorus { big_r: 2.0, small_r: 0.7 };
+    let torus = SimpleTorus {
+        big_r: 2.0,
+        small_r: 0.7,
+    };
     for &v in &[0.0f32, 0.5, 1.0, 2.0, 3.0, 5.0] {
         let g = torus.christoffel(v);
         for k in 0..2 {
@@ -196,7 +200,10 @@ fn torus_christoffel_is_symmetric_in_lower_indices() {
 #[test]
 fn torus_christoffel_zero_on_outer_equator() {
     // At v = 0 (outer equator), sin(v) = 0, so df_dv = 0 and all Christoffels vanish.
-    let torus = SimpleTorus { big_r: 2.0, small_r: 0.7 };
+    let torus = SimpleTorus {
+        big_r: 2.0,
+        small_r: 0.7,
+    };
     let g = torus.christoffel(0.0);
     for k in 0..2 {
         for i in 0..2 {
@@ -214,7 +221,10 @@ fn torus_christoffel_zero_on_outer_equator() {
 #[test]
 fn torus_christoffel_nonzero_off_equator() {
     // At v = pi/2, sin(v) = 1 != 0, so the (0,01) and (1,00) components are nonzero.
-    let torus = SimpleTorus { big_r: 2.0, small_r: 0.7 };
+    let torus = SimpleTorus {
+        big_r: 2.0,
+        small_r: 0.7,
+    };
     let g = torus.christoffel(std::f32::consts::FRAC_PI_2);
     // gamma_0_01 = -small_r / (big_r) = -0.7/2.0 = -0.35
     assert!(
@@ -242,7 +252,12 @@ struct TrailBuf {
 
 impl TrailBuf {
     fn new(cap: usize) -> Self {
-        Self { data: vec![[0.0; 3]; cap], head: 0, count: 0, cap }
+        Self {
+            data: vec![[0.0; 3]; cap],
+            head: 0,
+            count: 0,
+            cap,
+        }
     }
 
     fn push(&mut self, pos: [f32; 3]) {
@@ -313,7 +328,10 @@ fn trail_buffer_oldest_vertex_has_zero_alpha() {
     let verts = buf.ordered();
     // Oldest entry (index 0) has age_frac = 0 so alpha = 0.
     let (_, alpha) = verts[0];
-    assert!(alpha.abs() < 1e-6, "oldest vertex alpha should be 0, got {alpha}");
+    assert!(
+        alpha.abs() < 1e-6,
+        "oldest vertex alpha should be 0, got {alpha}"
+    );
 }
 
 #[test]
@@ -358,8 +376,16 @@ fn trail_buffer_ring_wrap_returns_correct_order() {
     // After 8 pushes to a cap-4 buffer, the oldest is 4, newest is 7.
     let verts = buf.ordered();
     assert_eq!(verts.len(), 4);
-    assert!((verts[0].0[0] - 4.0).abs() < 1e-5, "oldest should be 4, got {}", verts[0].0[0]);
-    assert!((verts[3].0[0] - 7.0).abs() < 1e-5, "newest should be 7, got {}", verts[3].0[0]);
+    assert!(
+        (verts[0].0[0] - 4.0).abs() < 1e-5,
+        "oldest should be 4, got {}",
+        verts[0].0[0]
+    );
+    assert!(
+        (verts[3].0[0] - 7.0).abs() < 1e-5,
+        "newest should be 7, got {}",
+        verts[3].0[0]
+    );
 }
 
 // ---- Config parsing edge-case tests ------------------------------------
@@ -378,7 +404,10 @@ fn parse_color(hex: &str) -> [f32; 4] {
 fn config_color_white() {
     let c = parse_color("#FFFFFF");
     for ch in [c[0], c[1], c[2]] {
-        assert!((ch - 1.0).abs() < 1e-3, "channel should be 1.0 for white, got {ch}");
+        assert!(
+            (ch - 1.0).abs() < 1e-3,
+            "channel should be 1.0 for white, got {ch}"
+        );
     }
     assert_eq!(c[3], 1.0);
 }
@@ -414,7 +443,10 @@ fn config_color_invalid_hex_digits_use_fallback() {
     let c = parse_color("#ZZZZZZ");
     // All three channels should fall back to 128/255.
     for ch in [c[0], c[1], c[2]] {
-        assert!((ch - 128.0 / 255.0).abs() < 1e-3, "expected 128/255 fallback, got {ch}");
+        assert!(
+            (ch - 128.0 / 255.0).abs() < 1e-3,
+            "expected 128/255 fallback, got {ch}"
+        );
     }
     assert_eq!(c[3], 1.0);
 }

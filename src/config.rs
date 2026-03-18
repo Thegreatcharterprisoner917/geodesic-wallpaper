@@ -78,10 +78,18 @@ pub struct Config {
     pub time_step: f32,
 }
 
-fn default_surface() -> String { "torus".into() }
-fn default_num_geodesics() -> usize { 30 }
-fn default_trail_length() -> usize { 300 }
-fn default_rotation_speed() -> f32 { 0.001047 }
+fn default_surface() -> String {
+    "torus".into()
+}
+fn default_num_geodesics() -> usize {
+    30
+}
+fn default_trail_length() -> usize {
+    300
+}
+fn default_rotation_speed() -> f32 {
+    0.001047
+}
 fn default_color_palette() -> Vec<String> {
     vec![
         "#4488FF".into(),
@@ -91,9 +99,15 @@ fn default_color_palette() -> Vec<String> {
         "#FF88CC".into(),
     ]
 }
-fn default_torus_r_big() -> f32 { 2.0 }
-fn default_torus_r_small() -> f32 { 0.7 }
-fn default_time_step() -> f32 { 0.016 }
+fn default_torus_r_big() -> f32 {
+    2.0
+}
+fn default_torus_r_small() -> f32 {
+    0.7
+}
+fn default_time_step() -> f32 {
+    0.016
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -164,6 +178,7 @@ pub type SharedConfig = Arc<RwLock<Config>>;
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
     use std::io::Write;
@@ -267,12 +282,21 @@ time_step = 0.008
         assert!(cfg.torus_R > 0.0, "torus_R must be positive");
         assert!(cfg.torus_r > 0.0, "torus_r must be positive");
         assert!(cfg.time_step > 0.0, "time_step must be positive");
-        assert!(cfg.rotation_speed >= 0.0, "rotation_speed must be non-negative");
-        assert!(!cfg.color_palette.is_empty(), "color_palette must not be empty");
+        assert!(
+            cfg.rotation_speed >= 0.0,
+            "rotation_speed must be non-negative"
+        );
+        assert!(
+            !cfg.color_palette.is_empty(),
+            "color_palette must not be empty"
+        );
         assert!(cfg.trail_length > 0, "trail_length must be > 0");
         // Surface name must be one of the known values.
-        assert!(["torus", "sphere", "saddle"].contains(&cfg.surface.as_str()),
-            "unexpected default surface: {}", cfg.surface);
+        assert!(
+            ["torus", "sphere", "saddle"].contains(&cfg.surface.as_str()),
+            "unexpected default surface: {}",
+            cfg.surface
+        );
     }
 
     /// Serialise the default config to TOML and deserialise it again; all
@@ -280,10 +304,8 @@ time_step = 0.008
     #[test]
     fn test_config_round_trip() {
         let original = Config::default();
-        let toml_str = toml::to_string(&original)
-            .expect("serialization failed");
-        let restored: Config = toml::from_str(&toml_str)
-            .expect("deserialization failed");
+        let toml_str = toml::to_string(&original).expect("serialization failed");
+        let restored: Config = toml::from_str(&toml_str).expect("deserialization failed");
 
         assert_eq!(original.surface, restored.surface);
         assert_eq!(original.num_geodesics, restored.num_geodesics);
@@ -299,7 +321,10 @@ time_step = 0.008
     #[test]
     fn test_config_geodesic_count_nonzero() {
         let cfg = Config::default();
-        assert!(cfg.num_geodesics > 0,
-            "num_geodesics must be > 0, got {}", cfg.num_geodesics);
+        assert!(
+            cfg.num_geodesics > 0,
+            "num_geodesics must be > 0, got {}",
+            cfg.num_geodesics
+        );
     }
 }

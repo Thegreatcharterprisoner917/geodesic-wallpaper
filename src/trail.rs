@@ -48,7 +48,13 @@ impl TrailBuffer {
         // Guard against zero capacity to avoid divide-by-zero in ordered_vertices.
         let capacity = capacity.max(1);
         Self {
-            vertices: vec![TrailVertex { position: [0.0; 3], color: [0.0; 4] }; capacity],
+            vertices: vec![
+                TrailVertex {
+                    position: [0.0; 3],
+                    color: [0.0; 4]
+                };
+                capacity
+            ],
             head: 0,
             count: 0,
             capacity,
@@ -65,7 +71,9 @@ impl TrailBuffer {
             color: self.color,
         };
         self.head = (self.head + 1) % self.capacity;
-        if self.count < self.capacity { self.count += 1; }
+        if self.count < self.capacity {
+            self.count += 1;
+        }
     }
 
     /// Reset the buffer, discarding all stored samples.
@@ -106,7 +114,9 @@ impl TrailBuffer {
 mod tests {
     use super::*;
 
-    fn red() -> [f32; 4] { [1.0, 0.0, 0.0, 1.0] }
+    fn red() -> [f32; 4] {
+        [1.0, 0.0, 0.0, 1.0]
+    }
 
     /// A freshly created buffer should report zero count.
     #[test]
@@ -153,8 +163,10 @@ mod tests {
         // Oldest vertex (index 0) has the lowest alpha.
         let first_alpha = verts[0].color[3];
         let last_alpha = verts[cap - 1].color[3];
-        assert!(first_alpha < last_alpha,
-            "expected first_alpha < last_alpha, got {first_alpha} vs {last_alpha}");
+        assert!(
+            first_alpha < last_alpha,
+            "expected first_alpha < last_alpha, got {first_alpha} vs {last_alpha}"
+        );
     }
 
     /// When the buffer wraps around, ordered_vertices must still return samples
@@ -171,8 +183,11 @@ mod tests {
         let verts = buf.ordered_vertices();
         assert_eq!(verts.len(), cap);
         let positions: Vec<f32> = verts.iter().map(|v| v.position[0]).collect();
-        assert_eq!(positions, vec![2.0, 3.0, 4.0, 5.0],
-            "ring wrap order incorrect: {positions:?}");
+        assert_eq!(
+            positions,
+            vec![2.0, 3.0, 4.0, 5.0],
+            "ring wrap order incorrect: {positions:?}"
+        );
     }
 
     /// A zero-capacity guard: TrailBuffer::new clamps capacity to 1 to avoid

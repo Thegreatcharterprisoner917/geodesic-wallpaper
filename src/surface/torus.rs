@@ -179,6 +179,7 @@ impl Surface for Torus {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(clippy::needless_range_loop)]
 mod tests {
     use super::*;
     use std::f32::consts::PI;
@@ -240,8 +241,10 @@ mod tests {
         let t = Torus::new(2.0, 0.7);
         let g = t.christoffel(0.4, 0.8);
         for k in 0..2 {
-            assert!((g[k][0][1] - g[k][1][0]).abs() < 1e-6,
-                "Γ^{k}_01 != Γ^{k}_10");
+            assert!(
+                (g[k][0][1] - g[k][1][0]).abs() < 1e-6,
+                "Γ^{k}_01 != Γ^{k}_10"
+            );
         }
     }
 
@@ -249,7 +252,11 @@ mod tests {
     fn normal_is_unit() {
         let t = Torus::new(2.0, 0.7);
         let n = t.normal(1.0, 1.0);
-        assert!((n.length() - 1.0).abs() < 1e-5, "normal length={}", n.length());
+        assert!(
+            (n.length() - 1.0).abs() < 1e-5,
+            "normal length={}",
+            n.length()
+        );
     }
 
     #[test]
@@ -260,8 +267,11 @@ mod tests {
         for k in 0..2 {
             for i in 0..2 {
                 for j in 0..2 {
-                    assert!(g[k][i][j].abs() < 1e-6,
-                        "Γ^{k}_{i}{j} = {} at outer equator", g[k][i][j]);
+                    assert!(
+                        g[k][i][j].abs() < 1e-6,
+                        "Γ^{k}_{i}{j} = {} at outer equator",
+                        g[k][i][j]
+                    );
                 }
             }
         }
@@ -274,7 +284,11 @@ mod tests {
         let t = Torus::new(2.0, 0.7);
         let g = t.christoffel(0.0, PI / 2.0);
         // Γ^0_01 = df_dv / f = -r / (R + r*cos(PI/2)) = -r / R ≠ 0.
-        assert!(g[0][0][1].abs() > 0.1, "expected nonzero Γ^0_01: {}", g[0][0][1]);
+        assert!(
+            g[0][0][1].abs() > 0.1,
+            "expected nonzero Γ^0_01: {}",
+            g[0][0][1]
+        );
     }
 
     /// g_00 and g_11 must be strictly positive for every sampled (u, v) because
@@ -313,8 +327,11 @@ mod tests {
 
         // v should remain close to 0 (wrap makes 0 and TAU equivalent).
         let v_dist = geo.v.min(TAU - geo.v);
-        assert!(v_dist < 0.05,
-            "v drifted from equator: wrapped v = {}", geo.v);
+        assert!(
+            v_dist < 0.05,
+            "v drifted from equator: wrapped v = {}",
+            geo.v
+        );
     }
 
     /// The Christoffel array for a 2-D surface must contain exactly 2×2×2 = 8 values.
@@ -345,8 +362,11 @@ mod tests {
                 let u = ui as f32 * TAU / 8.0;
                 let v = vi as f32 * TAU / 8.0;
                 let n = t.normal(u, v);
-                assert!((n.length() - 1.0).abs() < 1e-5,
-                    "normal not unit at u={u:.3} v={v:.3}: |n|={}", n.length());
+                assert!(
+                    (n.length() - 1.0).abs() < 1e-5,
+                    "normal not unit at u={u:.3} v={v:.3}: |n|={}",
+                    n.length()
+                );
             }
         }
     }
@@ -362,8 +382,10 @@ mod tests {
                 let v = vi as f32 * TAU / 6.0;
                 let g = t.christoffel(u, v);
                 for k in 0..2 {
-                    assert!((g[k][0][1] - g[k][1][0]).abs() < 1e-6,
-                        "Γ^{k}_01 != Γ^{k}_10 at u={u:.3} v={v:.3}");
+                    assert!(
+                        (g[k][0][1] - g[k][1][0]).abs() < 1e-6,
+                        "Γ^{k}_01 != Γ^{k}_10 at u={u:.3} v={v:.3}"
+                    );
                 }
             }
         }

@@ -1,14 +1,15 @@
 //! Property-based tests for surface parameterization math.
+#![allow(clippy::needless_range_loop)]
 //!
 //! Uses `proptest` to verify mathematical invariants that must hold for all
 //! valid `(u, v)` inputs: metric symmetry, positive-definiteness, position
 //! norms, velocity conservation, and Christoffel symbol symmetry.
 
+use geodesic_wallpaper::geodesic::Geodesic;
+use geodesic_wallpaper::surface::saddle::Saddle;
 use geodesic_wallpaper::surface::sphere::Sphere;
 use geodesic_wallpaper::surface::torus::Torus;
-use geodesic_wallpaper::surface::saddle::Saddle;
 use geodesic_wallpaper::surface::Surface;
-use geodesic_wallpaper::geodesic::Geodesic;
 use proptest::prelude::*;
 use std::f32::consts::{PI, TAU};
 

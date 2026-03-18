@@ -1,7 +1,7 @@
 //! Integration tests for the geodesic integrator.
 
 use geodesic_wallpaper::geodesic::Geodesic;
-use geodesic_wallpaper::surface::{torus::Torus, sphere::Sphere, Surface};
+use geodesic_wallpaper::surface::{sphere::Sphere, torus::Torus, Surface};
 use std::f32::consts::PI;
 
 #[test]

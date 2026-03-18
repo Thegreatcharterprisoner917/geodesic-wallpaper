@@ -3,7 +3,7 @@
 pub mod config;
 pub mod error;
 pub mod geodesic;
+pub mod renderer;
 pub mod surface;
 pub mod trail;
-pub mod renderer;
 pub mod wallpaper;

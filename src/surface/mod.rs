@@ -4,9 +4,9 @@
 //! metric tensor, Christoffel symbols, and helpers needed by the RK4 integrator
 //! and the mesh renderer.
 
-pub mod torus;
-pub mod sphere;
 pub mod saddle;
+pub mod sphere;
+pub mod torus;
 
 use glam::Vec3;
 

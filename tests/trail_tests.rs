@@ -63,7 +63,11 @@ fn points_returned_in_order_after_wrap() {
     // The last 4 inserted are [2, 3, 4, 5].
     let verts = buf.ordered_vertices();
     let positions: Vec<f32> = verts.iter().map(|v| v.position[0]).collect();
-    assert_eq!(positions, vec![2.0, 3.0, 4.0, 5.0], "order after wrap: {positions:?}");
+    assert_eq!(
+        positions,
+        vec![2.0, 3.0, 4.0, 5.0],
+        "order after wrap: {positions:?}"
+    );
 }
 
 #[test]
@@ -93,5 +97,8 @@ fn fade_alpha_increases_tail_to_head() {
     let verts = buf.ordered_vertices();
     let first = verts[0].color[3];
     let last = verts[cap - 1].color[3];
-    assert!(first < last, "alpha should increase: first={first} last={last}");
+    assert!(
+        first < last,
+        "alpha should increase: first={first} last={last}"
+    );
 }

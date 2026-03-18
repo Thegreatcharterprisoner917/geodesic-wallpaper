@@ -2,7 +2,7 @@
 
 use super::Surface;
 use glam::Vec3;
-use std::f32::consts::{TAU, PI};
+use std::f32::consts::{PI, TAU};
 
 /// Sphere of given radius using the standard spherical parameterization.
 ///
@@ -24,28 +24,36 @@ pub struct Sphere {
 
 impl Sphere {
     /// Construct a sphere with the given `radius`.
-    pub fn new(radius: f32) -> Self { Self { radius } }
+    pub fn new(radius: f32) -> Self {
+        Self { radius }
+    }
 
     /// First partial derivative `∂φ/∂u` at `(u, v)`.
     fn d_du(&self, u: f32, v: f32) -> Vec3 {
-        Vec3::new(-self.radius * v.sin() * u.sin(),
-                   self.radius * v.sin() * u.cos(),
-                   0.0)
+        Vec3::new(
+            -self.radius * v.sin() * u.sin(),
+            self.radius * v.sin() * u.cos(),
+            0.0,
+        )
     }
 
     /// First partial derivative `∂φ/∂v` at `(u, v)`.
     fn d_dv(&self, u: f32, v: f32) -> Vec3 {
-        Vec3::new( self.radius * v.cos() * u.cos(),
-                   self.radius * v.cos() * u.sin(),
-                  -self.radius * v.sin())
+        Vec3::new(
+            self.radius * v.cos() * u.cos(),
+            self.radius * v.cos() * u.sin(),
+            -self.radius * v.sin(),
+        )
     }
 }
 
 impl Surface for Sphere {
     fn position(&self, u: f32, v: f32) -> Vec3 {
-        Vec3::new(self.radius * v.sin() * u.cos(),
-                  self.radius * v.sin() * u.sin(),
-                  self.radius * v.cos())
+        Vec3::new(
+            self.radius * v.sin() * u.cos(),
+            self.radius * v.sin() * u.sin(),
+            self.radius * v.cos(),
+        )
     }
 
     fn metric(&self, u: f32, v: f32) -> [[f32; 2]; 2] {
@@ -117,6 +125,7 @@ impl Surface for Sphere {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(clippy::needless_range_loop)]
 mod tests {
     use super::*;
 
@@ -148,7 +157,10 @@ mod tests {
         // Near the poles v ≈ 0 or v ≈ π, sin(v) ≈ 0 so Γ^0_01 is clamped to 0.
         let s = Sphere::new(1.0);
         let g = s.christoffel(0.0, 1e-8);
-        assert!(g[0][0][1].abs() < 1.0, "Γ^0_01 should not blow up near pole");
+        assert!(
+            g[0][0][1].abs() < 1.0,
+            "Γ^0_01 should not blow up near pole"
+        );
     }
 
     #[test]
@@ -194,12 +206,21 @@ mod tests {
         let s = Sphere::new(r);
         let g = s.metric(0.0, PI / 2.0);
         let expected = r * r;
-        assert!((g[0][0] - expected).abs() < 1e-4,
-            "g_00 = {} but expected r² = {expected}", g[0][0]);
-        assert!((g[1][1] - expected).abs() < 1e-4,
-            "g_11 = {} but expected r² = {expected}", g[1][1]);
-        assert!(g[0][1].abs() < 1e-5,
-            "g_01 = {} should be 0 at equator", g[0][1]);
+        assert!(
+            (g[0][0] - expected).abs() < 1e-4,
+            "g_00 = {} but expected r² = {expected}",
+            g[0][0]
+        );
+        assert!(
+            (g[1][1] - expected).abs() < 1e-4,
+            "g_11 = {} but expected r² = {expected}",
+            g[1][1]
+        );
+        assert!(
+            g[0][1].abs() < 1e-5,
+            "g_01 = {} should be 0 at equator",
+            g[0][1]
+        );
     }
 
     /// A geodesic launched along the equator (`v = π/2`, `dv = 0`) should stay
@@ -216,8 +237,11 @@ mod tests {
         }
 
         // v should remain very close to π/2 (equator).
-        assert!((geo.v - PI / 2.0).abs() < 0.05,
-            "v drifted from equator: v = {}", geo.v);
+        assert!(
+            (geo.v - PI / 2.0).abs() < 0.05,
+            "v drifted from equator: v = {}",
+            geo.v
+        );
     }
 
     /// The outward unit normal must have length 1 at every sampled point.
@@ -228,12 +252,16 @@ mod tests {
     fn test_sphere_normal_unit_length() {
         let s = Sphere::new(2.5);
         for ui in 0..8u32 {
-            for vi in 1..8u32 { // skip poles where v=0 and v=PI
+            for vi in 1..8u32 {
+                // skip poles where v=0 and v=PI
                 let u = ui as f32 * TAU / 8.0;
                 let v = vi as f32 * PI / 8.0;
                 let n = s.normal(u, v);
-                assert!((n.length() - 1.0).abs() < 1e-5,
-                    "normal not unit at u={u:.3} v={v:.3}: |n|={}", n.length());
+                assert!(
+                    (n.length() - 1.0).abs() < 1e-5,
+                    "normal not unit at u={u:.3} v={v:.3}: |n|={}",
+                    n.length()
+                );
             }
         }
     }
@@ -267,8 +295,10 @@ mod tests {
                 let v = vi as f32 * PI / 6.0;
                 let g = s.christoffel(u, v);
                 for k in 0..2 {
-                    assert!((g[k][0][1] - g[k][1][0]).abs() < 1e-6,
-                        "Γ^{k}_01 != Γ^{k}_10 at u={u:.3} v={v:.3}");
+                    assert!(
+                        (g[k][0][1] - g[k][1][0]).abs() < 1e-6,
+                        "Γ^{k}_01 != Γ^{k}_10 at u={u:.3} v={v:.3}"
+                    );
                 }
             }
         }

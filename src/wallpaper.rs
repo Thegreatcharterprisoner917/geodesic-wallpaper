@@ -3,21 +3,19 @@
 //! but above the desktop background — reliable on Windows 10/11.
 //! All unsafe isolated here.
 
-use windows::Win32::Foundation::{HWND, WPARAM, LPARAM, LRESULT};
-use windows::Win32::UI::WindowsAndMessaging::{
-    SetWindowPos, ShowWindow,
-    CreateWindowExW, RegisterClassExW, DefWindowProcW, PostQuitMessage,
-    WNDCLASSEXW, CS_HREDRAW, CS_VREDRAW,
-    WS_POPUP, WS_VISIBLE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-    SWP_NOACTIVATE, SWP_NOZORDER,
-    HWND_BOTTOM, SW_SHOW,
-    WM_DESTROY, WM_WINDOWPOSCHANGING,
-    WINDOWPOS,
-};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::Graphics::Gdi::UpdateWindow;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, DefWindowProcW, PostQuitMessage, RegisterClassExW, SetWindowPos, ShowWindow,
+    CS_HREDRAW, CS_VREDRAW, HWND_BOTTOM, SWP_NOACTIVATE, SWP_NOZORDER, SW_SHOW, WINDOWPOS,
+    WM_DESTROY, WM_WINDOWPOSCHANGING, WNDCLASSEXW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
+    WS_VISIBLE,
+};
 
-fn hwnd_null(h: HWND) -> bool { h.0 as isize == 0 }
+fn hwnd_null(h: HWND) -> bool {
+    h.0 as isize == 0
+}
 
 /// Create a borderless fullscreen window that stays below all other app windows.
 /// Intercepts WM_WINDOWPOSCHANGING to prevent anything from raising it.
@@ -40,13 +38,24 @@ pub fn create_wallpaper_hwnd(width: i32, height: i32) -> Option<HWND> {
             class_name,
             windows::core::w!(""),
             WS_POPUP | WS_VISIBLE,
-            0, 0, width, height,
-            None, None, hinstance, None,
+            0,
+            0,
+            width,
+            height,
+            None,
+            None,
+            hinstance,
+            None,
         ) {
             Ok(h) => h,
-            Err(e) => { tracing::error!("CreateWindowExW failed: {e}"); return None; }
+            Err(e) => {
+                tracing::error!("CreateWindowExW failed: {e}");
+                return None;
+            }
         };
-        if hwnd_null(hwnd) { return None; }
+        if hwnd_null(hwnd) {
+            return None;
+        }
 
         // Pin to bottom of Z-order — below all normal windows, above desktop
         let _ = SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, width, height, SWP_NOACTIVATE);

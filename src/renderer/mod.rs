@@ -2,17 +2,17 @@
 
 pub mod camera;
 
-use wgpu::util::DeviceExt;
-use bytemuck::{Pod, Zeroable};
-use crate::trail::TrailVertex;
 use crate::error::GeodesicError;
+use crate::trail::TrailVertex;
+use bytemuck::{Pod, Zeroable};
 use camera::Camera;
-use windows::Win32::Foundation::HWND;
 use raw_window_handle::{
-    RawWindowHandle, RawDisplayHandle, Win32WindowHandle, WindowsDisplayHandle,
-    HasWindowHandle, HasDisplayHandle,
+    HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle, Win32WindowHandle,
+    WindowsDisplayHandle,
 };
 use std::num::NonZeroIsize;
+use wgpu::util::DeviceExt;
+use windows::Win32::Foundation::HWND;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -50,9 +50,10 @@ const MAX_TRAIL_VERTS: usize = 100_000;
 struct RawHwnd(isize);
 
 impl HasWindowHandle for RawHwnd {
-    fn window_handle(&self) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
-        let nz = NonZeroIsize::new(self.0)
-            .ok_or(raw_window_handle::HandleError::Unavailable)?;
+    fn window_handle(
+        &self,
+    ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+        let nz = NonZeroIsize::new(self.0).ok_or(raw_window_handle::HandleError::Unavailable)?;
         let mut h = Win32WindowHandle::new(nz);
         h.hinstance = None;
         Ok(unsafe { raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::Win32(h)) })
@@ -60,8 +61,14 @@ impl HasWindowHandle for RawHwnd {
 }
 
 impl HasDisplayHandle for RawHwnd {
-    fn display_handle(&self) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
-        Ok(unsafe { raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::Windows(WindowsDisplayHandle::new())) })
+    fn display_handle(
+        &self,
+    ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+        Ok(unsafe {
+            raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::Windows(
+                WindowsDisplayHandle::new(),
+            ))
+        })
     }
 }
 
@@ -143,7 +150,9 @@ impl Renderer {
         wgpu_surface.configure(&device, &surface_config);
 
         let camera = Camera::new(width as f32 / height as f32);
-        let uniforms = Uniforms { view_proj: camera.view_proj().to_cols_array_2d() };
+        let uniforms = Uniforms {
+            view_proj: camera.view_proj().to_cols_array_2d(),
+        };
 
         let uniform_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("uniforms"),
@@ -230,7 +239,8 @@ impl Renderer {
             }
         }
 
-        let surface_verts_bytes: Vec<u8> = mesh_verts.iter()
+        let surface_verts_bytes: Vec<u8> = mesh_verts
+            .iter()
             .flat_map(|v| bytemuck::bytes_of(v).iter().copied())
             .collect();
         let surface_vbuf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -322,7 +332,11 @@ impl Renderer {
     fn make_depth(device: &wgpu::Device, w: u32, h: u32) -> (wgpu::Texture, wgpu::TextureView) {
         let tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("depth"),
-            size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -340,7 +354,8 @@ impl Renderer {
     pub fn resize(&mut self, width: u32, height: u32) {
         self.surface_config.width = width;
         self.surface_config.height = height;
-        self.wgpu_surface.configure(&self.device, &self.surface_config);
+        self.wgpu_surface
+            .configure(&self.device, &self.surface_config);
         self.camera.aspect = width as f32 / height as f32;
         let (dt, dv) = Self::make_depth(&self.device, width, height);
         self.depth_texture = dt;
@@ -353,17 +368,24 @@ impl Renderer {
     /// `trail_segment_lengths` gives the number of vertices belonging to each
     /// geodesic segment so the render pass can issue the correct draw calls.
     pub fn render(&mut self, trail_verts: &[TrailVertex], trail_segment_lengths: &[usize]) {
-        let uniforms = Uniforms { view_proj: self.camera.view_proj().to_cols_array_2d() };
-        self.queue.write_buffer(&self.uniform_buf, 0, bytemuck::bytes_of(&uniforms));
+        let uniforms = Uniforms {
+            view_proj: self.camera.view_proj().to_cols_array_2d(),
+        };
+        self.queue
+            .write_buffer(&self.uniform_buf, 0, bytemuck::bytes_of(&uniforms));
 
         if !trail_verts.is_empty() {
             let n = trail_verts.len().min(self.trail_vbuf_capacity);
-            self.queue.write_buffer(&self.trail_vbuf, 0, bytemuck::cast_slice(&trail_verts[..n]));
+            self.queue
+                .write_buffer(&self.trail_vbuf, 0, bytemuck::cast_slice(&trail_verts[..n]));
         }
 
         let frame = match self.wgpu_surface.get_current_texture() {
             Ok(f) => f,
-            Err(e) => { tracing::warn!("Surface err: {e}"); return; }
+            Err(e) => {
+                tracing::warn!("Surface err: {e}");
+                return;
+            }
         };
         let view = frame.texture.create_view(&Default::default());
         let mut enc = self.device.create_command_encoder(&Default::default());
@@ -374,7 +396,12 @@ impl Renderer {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.02, g: 0.02, b: 0.05, a: 1.0 }),
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.02,
+                            g: 0.02,
+                            b: 0.05,
+                            a: 1.0,
+                        }),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -404,11 +431,12 @@ impl Renderer {
                     rp.draw(offset..end, 0..1);
                 }
                 offset += len as u32;
-                if offset as usize >= self.trail_vbuf_capacity { break; }
+                if offset as usize >= self.trail_vbuf_capacity {
+                    break;
+                }
             }
         }
         self.queue.submit(std::iter::once(enc.finish()));
         frame.present();
     }
 }
-

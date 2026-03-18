@@ -21,7 +21,9 @@ impl Saddle {
     /// Construct a saddle surface with the given `scale` parameter.
     ///
     /// A `scale` of `2.0` produces a moderate saddle suitable for wallpaper use.
-    pub fn new(scale: f32) -> Self { Self { scale } }
+    pub fn new(scale: f32) -> Self {
+        Self { scale }
+    }
 
     /// Compute the 3D embedding `(u, v, (u²-v²)/scale)`.
     fn embed(&self, u: f32, v: f32) -> Vec3 {
@@ -40,7 +42,9 @@ impl Saddle {
 }
 
 impl Surface for Saddle {
-    fn position(&self, u: f32, v: f32) -> Vec3 { self.embed(u, v) }
+    fn position(&self, u: f32, v: f32) -> Vec3 {
+        self.embed(u, v)
+    }
 
     fn metric(&self, u: f32, v: f32) -> [[f32; 2]; 2] {
         let e1 = self.d_du(u, v);
@@ -84,18 +88,21 @@ impl Surface for Saddle {
         };
 
         let mut gamma = [[[0.0f32; 2]; 2]; 2];
+        #[allow(clippy::needless_range_loop)]
         for k in 0..2usize {
             for i in 0..2usize {
                 for j in 0..2usize {
-                    let sum: f32 = (0..2).map(|l| {
-                        let ginv = match (k, l) {
-                            (0, 0) => inv00,
-                            (0, 1) | (1, 0) => inv01,
-                            (1, 1) => inv11,
-                            _ => 0.0,
-                        };
-                        ginv * half_dg(i, j, l)
-                    }).sum();
+                    let sum: f32 = (0..2)
+                        .map(|l| {
+                            let ginv = match (k, l) {
+                                (0, 0) => inv00,
+                                (0, 1) | (1, 0) => inv01,
+                                (1, 1) => inv11,
+                                _ => 0.0,
+                            };
+                            ginv * half_dg(i, j, l)
+                        })
+                        .sum();
                     gamma[k][i][j] = 0.5 * sum;
                 }
             }
@@ -152,6 +159,7 @@ impl Surface for Saddle {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(clippy::needless_range_loop)]
 mod tests {
     use super::*;
 
@@ -207,8 +215,10 @@ mod tests {
         let s = Saddle::new(2.0);
         let g = s.christoffel(0.4, 0.8);
         for k in 0..2 {
-            assert!((g[k][0][1] - g[k][1][0]).abs() < 1e-5,
-                "Γ^{k}_01 != Γ^{k}_10");
+            assert!(
+                (g[k][0][1] - g[k][1][0]).abs() < 1e-5,
+                "Γ^{k}_01 != Γ^{k}_10"
+            );
         }
     }
 
@@ -220,8 +230,11 @@ mod tests {
         for k in 0..2 {
             for i in 0..2 {
                 for j in 0..2 {
-                    assert!(g[k][i][j].abs() < 1e-5,
-                        "Γ^{k}_{i}{j}={} at origin", g[k][i][j]);
+                    assert!(
+                        g[k][i][j].abs() < 1e-5,
+                        "Γ^{k}_{i}{j}={} at origin",
+                        g[k][i][j]
+                    );
                 }
             }
         }
@@ -259,8 +272,11 @@ mod tests {
                 let u = -1.6 + ui as f32 * 0.8;
                 let v = -1.6 + vi as f32 * 0.8;
                 let n = s.normal(u, v);
-                assert!((n.length() - 1.0).abs() < 1e-5,
-                    "normal not unit at u={u:.2} v={v:.2}: |n|={}", n.length());
+                assert!(
+                    (n.length() - 1.0).abs() < 1e-5,
+                    "normal not unit at u={u:.2} v={v:.2}: |n|={}",
+                    n.length()
+                );
             }
         }
     }
@@ -290,11 +306,16 @@ mod tests {
         let g = s.christoffel(1.0, 0.5);
         // At least one symbol should be non-zero away from origin.
         let any_nonzero = (0..2).any(|k| (0..2).any(|i| (0..2).any(|j| g[k][i][j].abs() > 1e-6)));
-        assert!(any_nonzero, "all Christoffel symbols zero at non-origin point");
+        assert!(
+            any_nonzero,
+            "all Christoffel symbols zero at non-origin point"
+        );
         // Still must be symmetric.
         for k in 0..2 {
-            assert!((g[k][0][1] - g[k][1][0]).abs() < 1e-5,
-                "Γ^{k}_01 != Γ^{k}_10 at (1.0, 0.5)");
+            assert!(
+                (g[k][0][1] - g[k][1][0]).abs() < 1e-5,
+                "Γ^{k}_01 != Γ^{k}_10 at (1.0, 0.5)"
+            );
         }
     }
 }

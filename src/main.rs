@@ -6,18 +6,18 @@
 
 use geodesic_wallpaper::config::{Config, SharedConfig};
 use geodesic_wallpaper::error::GeodesicError;
-use geodesic_wallpaper::surface::{Surface, torus::Torus, sphere::Sphere, saddle::Saddle};
 use geodesic_wallpaper::geodesic::Geodesic;
-use geodesic_wallpaper::trail::TrailBuffer;
 use geodesic_wallpaper::renderer::Renderer;
+use geodesic_wallpaper::surface::{saddle::Saddle, sphere::Sphere, torus::Torus, Surface};
+use geodesic_wallpaper::trail::TrailBuffer;
 use geodesic_wallpaper::wallpaper;
 
-use std::sync::{Arc, RwLock};
-use std::path::PathBuf;
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::SeedableRng;
+use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 use windows::Win32::UI::WindowsAndMessaging::{
-    PeekMessageW, TranslateMessage, DispatchMessageW, MSG, PM_REMOVE,
+    DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
 };
 
 /// Construct the surface implementation selected in `cfg`.
@@ -35,7 +35,10 @@ fn build_surface(cfg: &Config) -> Box<dyn Surface> {
 
 /// Convert the hex colour palette from config into `[f32; 4]` RGBA values.
 fn parse_colors(cfg: &Config) -> Vec<[f32; 4]> {
-    cfg.color_palette.iter().map(|s| Config::parse_color(s)).collect()
+    cfg.color_palette
+        .iter()
+        .map(|s| Config::parse_color(s))
+        .collect()
 }
 
 /// Query the primary monitor resolution via Win32.
@@ -46,7 +49,11 @@ fn screen_size() -> (i32, i32) {
         use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
         let w = GetSystemMetrics(SM_CXSCREEN);
         let h = GetSystemMetrics(SM_CYSCREEN);
-        if w > 0 && h > 0 { (w, h) } else { (1920, 1080) }
+        if w > 0 && h > 0 {
+            (w, h)
+        } else {
+            (1920, 1080)
+        }
     }
 }
 
@@ -87,9 +94,11 @@ fn run() -> Result<(), GeodesicError> {
         let shared = shared_cfg.clone();
         let path = config_path.clone();
         std::thread::spawn(move || {
-            use notify::{Watcher, RecursiveMode, recommended_watcher};
+            use notify::{recommended_watcher, RecursiveMode, Watcher};
             let (tx, rx) = std::sync::mpsc::channel();
-            let mut watcher = match recommended_watcher(move |res| { let _ = tx.send(res); }) {
+            let mut watcher = match recommended_watcher(move |res| {
+                let _ = tx.send(res);
+            }) {
                 Ok(w) => w,
                 Err(e) => {
                     tracing::warn!("Failed to start config watcher: {e}");
@@ -126,7 +135,8 @@ fn run() -> Result<(), GeodesicError> {
 
     let mut renderer = pollster::block_on(Renderer::new(
         hwnd,
-        sw as u32, sh as u32,
+        sw as u32,
+        sh as u32,
         &mesh_verts,
         &mesh_indices,
     ))?;
@@ -156,7 +166,8 @@ fn run() -> Result<(), GeodesicError> {
         unsafe {
             let mut msg = MSG::default();
             while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
-                if msg.message == 0x0012 { // WM_QUIT
+                if msg.message == 0x0012 {
+                    // WM_QUIT
                     tracing::info!("WM_QUIT received, exiting");
                     return Ok(());
                 }
@@ -174,12 +185,17 @@ fn run() -> Result<(), GeodesicError> {
         last_frame = std::time::Instant::now();
 
         // Orbit camera.
-        let rot = shared_cfg.read().map(|c| c.rotation_speed).unwrap_or(0.001047);
+        let rot = shared_cfg
+            .read()
+            .map(|c| c.rotation_speed)
+            .unwrap_or(0.001047);
         renderer.camera.orbit(rot * dt);
 
         // Step geodesics.
         for (i, geo) in geodesics.iter_mut().enumerate() {
-            if !geo.alive { continue; }
+            if !geo.alive {
+                continue;
+            }
             let pos = surf.position(geo.u, geo.v);
             trails[i].push([pos.x, pos.y, pos.z]);
             geo.step(surf.as_ref(), dt);

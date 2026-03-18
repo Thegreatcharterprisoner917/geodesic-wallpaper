@@ -1,6 +1,7 @@
 //! Integration tests for `surface::Torus`, `surface::Sphere`, and `surface::Saddle`.
+#![allow(clippy::needless_range_loop)]
 
-use geodesic_wallpaper::surface::{torus::Torus, sphere::Sphere, saddle::Saddle, Surface};
+use geodesic_wallpaper::surface::{saddle::Saddle, sphere::Sphere, torus::Torus, Surface};
 use std::f32::consts::{PI, TAU};
 
 // ---- Torus ---------------------------------------------------------------
@@ -22,7 +23,10 @@ fn torus_position_magnitude_reasonable() {
         let p = t.position(u, v);
         let len = p.length();
         // Should be between R-r=1.3 and R+r=2.7 (projected onto XY plane, z small).
-        assert!(len >= 1.2 && len <= 3.0, "position magnitude {len} out of range at ({u},{v})");
+        assert!(
+            (1.2..=3.0).contains(&len),
+            "position magnitude {len} out of range at ({u},{v})"
+        );
     }
 }
 
@@ -74,7 +78,10 @@ fn sphere_position_on_unit_sphere() {
     let s = Sphere::new(1.0);
     for (u, v) in [(0.0f32, PI / 2.0), (1.0, 1.0), (3.0, 2.0)] {
         let len = s.position(u, v).length();
-        assert!((len - 1.0).abs() < 1e-5, "sphere position len={len} at ({u},{v})");
+        assert!(
+            (len - 1.0).abs() < 1e-5,
+            "sphere position len={len} at ({u},{v})"
+        );
     }
 }
 
@@ -86,7 +93,10 @@ fn sphere_normal_perpendicular_to_tangents() {
         let n = s.normal(u, v);
         // For a sphere, normal == normalised position.
         let dot = pos.normalize().dot(n);
-        assert!((dot - 1.0).abs() < 1e-5, "normal not radial at ({u},{v}): dot={dot}");
+        assert!(
+            (dot - 1.0).abs() < 1e-5,
+            "normal not radial at ({u},{v}): dot={dot}"
+        );
     }
 }
 

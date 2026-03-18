@@ -60,7 +60,16 @@ impl Geodesic {
     /// assert_eq!(g.color_idx, 2);
     /// ```
     pub fn new(u: f32, v: f32, du: f32, dv: f32, max_age: usize, color_idx: usize) -> Self {
-        Self { u, v, du, dv, age: 0, max_age, color_idx, alive: true }
+        Self {
+            u,
+            v,
+            du,
+            dv,
+            age: 0,
+            max_age,
+            color_idx,
+            alive: true,
+        }
     }
 
     /// Advance the geodesic by one RK4 step of size `dt`.
@@ -78,29 +87,27 @@ impl Geodesic {
         let deriv = |u: f32, v: f32, du: f32, dv: f32| -> (f32, f32, f32, f32) {
             let (u_w, v_w) = surface.wrap(u, v);
             let g = surface.christoffel(u_w, v_w);
-            let acc_u = -(g[0][0][0] * du * du
-                        + 2.0 * g[0][0][1] * du * dv
-                        + g[0][1][1] * dv * dv);
-            let acc_v = -(g[1][0][0] * du * du
-                        + 2.0 * g[1][0][1] * du * dv
-                        + g[1][1][1] * dv * dv);
+            let acc_u = -(g[0][0][0] * du * du + 2.0 * g[0][0][1] * du * dv + g[0][1][1] * dv * dv);
+            let acc_v = -(g[1][0][0] * du * du + 2.0 * g[1][0][1] * du * dv + g[1][1][1] * dv * dv);
             (du, dv, acc_u, acc_v)
         };
 
         // Classic fourth-order Runge-Kutta.
         let (k1u, k1v, k1du, k1dv) = deriv(u, v, du, dv);
         let (k2u, k2v, k2du, k2dv) = deriv(
-            u + 0.5 * dt * k1u, v + 0.5 * dt * k1v,
-            du + 0.5 * dt * k1du, dv + 0.5 * dt * k1dv,
+            u + 0.5 * dt * k1u,
+            v + 0.5 * dt * k1v,
+            du + 0.5 * dt * k1du,
+            dv + 0.5 * dt * k1dv,
         );
         let (k3u, k3v, k3du, k3dv) = deriv(
-            u + 0.5 * dt * k2u, v + 0.5 * dt * k2v,
-            du + 0.5 * dt * k2du, dv + 0.5 * dt * k2dv,
+            u + 0.5 * dt * k2u,
+            v + 0.5 * dt * k2v,
+            du + 0.5 * dt * k2du,
+            dv + 0.5 * dt * k2dv,
         );
-        let (k4u, k4v, k4du, k4dv) = deriv(
-            u + dt * k3u, v + dt * k3v,
-            du + dt * k3du, dv + dt * k3dv,
-        );
+        let (k4u, k4v, k4du, k4dv) =
+            deriv(u + dt * k3u, v + dt * k3v, du + dt * k3du, dv + dt * k3dv);
 
         self.u += dt / 6.0 * (k1u + 2.0 * k2u + 2.0 * k3u + k4u);
         self.v += dt / 6.0 * (k1v + 2.0 * k2v + 2.0 * k3v + k4v);
@@ -136,6 +143,7 @@ impl Geodesic {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(clippy::needless_range_loop)]
 mod tests {
     use super::*;
     use crate::surface::sphere::Sphere;
@@ -175,11 +183,13 @@ mod tests {
         }
         // After renormalisation each step the metric speed should be 1.
         let g = torus.metric(geo.u, geo.v);
-        let speed_sq = g[0][0] * geo.du * geo.du
-            + 2.0 * g[0][1] * geo.du * geo.dv
-            + g[1][1] * geo.dv * geo.dv;
-        assert!((speed_sq.sqrt() - 1.0).abs() < 0.01,
-            "metric speed deviated: {}", speed_sq.sqrt());
+        let speed_sq =
+            g[0][0] * geo.du * geo.du + 2.0 * g[0][1] * geo.du * geo.dv + g[1][1] * geo.dv * geo.dv;
+        assert!(
+            (speed_sq.sqrt() - 1.0).abs() < 0.01,
+            "metric speed deviated: {}",
+            speed_sq.sqrt()
+        );
     }
 
     /// A geodesic with max_age = 5 should die after exactly 5 steps.
@@ -201,8 +211,16 @@ mod tests {
         let torus = Torus::new(2.0, 0.7);
         let g = torus.christoffel(0.0, 0.0);
         // At v=0, sin(v)=0, so df_dv = -r*sin(v) = 0 → all Christoffels zero.
-        assert!(g[0][0][1].abs() < 1e-6, "Γ^0_01 non-zero at v=0: {}", g[0][0][1]);
-        assert!(g[1][0][0].abs() < 1e-6, "Γ^1_00 non-zero at v=0: {}", g[1][0][0]);
+        assert!(
+            g[0][0][1].abs() < 1e-6,
+            "Γ^0_01 non-zero at v=0: {}",
+            g[0][0][1]
+        );
+        assert!(
+            g[1][0][0].abs() < 1e-6,
+            "Γ^1_00 non-zero at v=0: {}",
+            g[1][0][0]
+        );
     }
 
     /// Sphere Christoffel Γ^0_01 = cos(v)/sin(v) at v=PI/2 should be 0.
@@ -219,8 +237,8 @@ mod tests {
         let sphere = Sphere::new(1.0);
         // Start with u slightly past 2π.
         let (u, v) = sphere.wrap(TAU + 0.5, PI / 2.0);
-        assert!(u >= 0.0 && u < TAU, "u out of bounds: {u}");
-        assert!(v >= 0.0 && v <= PI, "v out of bounds: {v}");
+        assert!((0.0..TAU).contains(&u), "u out of bounds: {u}");
+        assert!((0.0..=PI).contains(&v), "v out of bounds: {v}");
     }
 
     /// Two geodesics started with identical initial conditions must produce
@@ -268,10 +286,16 @@ mod tests {
         // The renormalisation step guards against zero-division but since
         // speed_sq <= 1e-12 the velocity is left unchanged (still zero),
         // so position should not move.
-        assert!((geo.u - u0).abs() < 1e-4,
-            "u drifted from start: {} vs {u0}", geo.u);
-        assert!((geo.v - v0).abs() < 1e-4,
-            "v drifted from start: {} vs {v0}", geo.v);
+        assert!(
+            (geo.u - u0).abs() < 1e-4,
+            "u drifted from start: {} vs {u0}",
+            geo.u
+        );
+        assert!(
+            (geo.v - v0).abs() < 1e-4,
+            "v drifted from start: {} vs {v0}",
+            geo.v
+        );
     }
 
     /// Near the origin `(u=0, v=0)` the saddle is nearly flat and Christoffel
@@ -285,8 +309,11 @@ mod tests {
         for k in 0..2usize {
             for i in 0..2usize {
                 for j in 0..2usize {
-                    assert!(gamma[k][i][j].abs() < 1e-5,
-                        "Γ^{k}_{i}{j} = {} at flat region", gamma[k][i][j]);
+                    assert!(
+                        gamma[k][i][j].abs() < 1e-5,
+                        "Γ^{k}_{i}{j} = {} at flat region",
+                        gamma[k][i][j]
+                    );
                 }
             }
         }
@@ -321,7 +348,7 @@ mod tests {
         let (u_fine, v_fine) = run(0.02);
 
         let err_coarse = ((u_coarse - u_ref).powi(2) + (v_coarse - v_ref).powi(2)).sqrt();
-        let err_fine   = ((u_fine   - u_ref).powi(2) + (v_fine   - v_ref).powi(2)).sqrt();
+        let err_fine = ((u_fine - u_ref).powi(2) + (v_fine - v_ref).powi(2)).sqrt();
 
         // Avoid divide-by-zero when the fine error is already negligible.
         // Note: velocity renormalisation after each step disrupts pure RK4
@@ -420,32 +447,39 @@ mod tests {
         };
         let (k1u, k1v, k1du, k1dv) = deriv(u0, v0, du0, dv0);
         let (k2u, k2v, k2du, k2dv) = deriv(
-            u0 + 0.5*dt*k1u, v0 + 0.5*dt*k1v,
-            du0 + 0.5*dt*k1du, dv0 + 0.5*dt*k1dv,
+            u0 + 0.5 * dt * k1u,
+            v0 + 0.5 * dt * k1v,
+            du0 + 0.5 * dt * k1du,
+            dv0 + 0.5 * dt * k1dv,
         );
         let (k3u, k3v, k3du, k3dv) = deriv(
-            u0 + 0.5*dt*k2u, v0 + 0.5*dt*k2v,
-            du0 + 0.5*dt*k2du, dv0 + 0.5*dt*k2dv,
+            u0 + 0.5 * dt * k2u,
+            v0 + 0.5 * dt * k2v,
+            du0 + 0.5 * dt * k2du,
+            dv0 + 0.5 * dt * k2dv,
         );
         let (k4u, k4v, k4du, k4dv) = deriv(
-            u0 + dt*k3u, v0 + dt*k3v,
-            du0 + dt*k3du, dv0 + dt*k3dv,
+            u0 + dt * k3u,
+            v0 + dt * k3v,
+            du0 + dt * k3du,
+            dv0 + dt * k3dv,
         );
-        let u1  = u0  + dt/6.0 * (k1u  + 2.0*k2u  + 2.0*k3u  + k4u);
-        let v1  = v0  + dt/6.0 * (k1v  + 2.0*k2v  + 2.0*k3v  + k4v);
-        let du1 = du0 + dt/6.0 * (k1du + 2.0*k2du + 2.0*k3du + k4du);
-        let dv1 = dv0 + dt/6.0 * (k1dv + 2.0*k2dv + 2.0*k3dv + k4dv);
+        let u1 = u0 + dt / 6.0 * (k1u + 2.0 * k2u + 2.0 * k3u + k4u);
+        let v1 = v0 + dt / 6.0 * (k1v + 2.0 * k2v + 2.0 * k3v + k4v);
+        let du1 = du0 + dt / 6.0 * (k1du + 2.0 * k2du + 2.0 * k3du + k4du);
+        let dv1 = dv0 + dt / 6.0 * (k1dv + 2.0 * k2dv + 2.0 * k3dv + k4dv);
 
         let speed = |u: f32, v: f32, du: f32, dv: f32| -> f32 {
             let g = torus.metric(u, v);
-            g[0][0]*du*du + 2.0*g[0][1]*du*dv + g[1][1]*dv*dv
+            g[0][0] * du * du + 2.0 * g[0][1] * du * dv + g[1][1] * dv * dv
         };
 
         let s0 = speed(u0, v0, du0, dv0);
         let s1 = speed(u1, v1, du1, dv1);
 
-        assert!((s1 - s0).abs() < 0.01 * s0.max(1e-6),
-            "Metric speed changed too much in one RK4 step: before={s0:.6} after={s1:.6}");
+        assert!(
+            (s1 - s0).abs() < 0.01 * s0.max(1e-6),
+            "Metric speed changed too much in one RK4 step: before={s0:.6} after={s1:.6}"
+        );
     }
 }
-

@@ -1,4 +1,5 @@
 //! Integration tests for the `config` module.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geodesic_wallpaper::config::Config;
 use std::io::Write;
