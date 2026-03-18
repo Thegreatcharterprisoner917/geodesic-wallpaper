@@ -306,6 +306,7 @@ mod tests {
         let saddle = Saddle::new(2.0);
         // At the exact origin all metric derivatives vanish, so Γ = 0.
         let gamma = saddle.christoffel(0.0, 0.0);
+        #[allow(clippy::needless_range_loop)]
         for k in 0..2usize {
             for i in 0..2usize {
                 for j in 0..2usize {

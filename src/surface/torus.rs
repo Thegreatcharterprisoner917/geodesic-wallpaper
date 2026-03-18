@@ -340,6 +340,7 @@ mod tests {
         let t = Torus::new(2.0, 0.7);
         let gamma = t.christoffel(0.5, 0.5);
         let mut count = 0usize;
+        #[allow(clippy::needless_range_loop)]
         for k in 0..2usize {
             for i in 0..2usize {
                 for j in 0..2usize {
