@@ -6,4 +6,5 @@ pub mod geodesic;
 pub mod renderer;
 pub mod surface;
 pub mod trail;
+pub mod tray;
 pub mod wallpaper;

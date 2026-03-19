@@ -42,9 +42,9 @@ pub struct Renderer {
     pub camera: Camera,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
+    /// Whether to draw the surface wireframe each frame.
+    pub show_wireframe: bool,
 }
-
-const MAX_TRAIL_VERTS: usize = 100_000;
 
 /// Minimal wrapper so wgpu can obtain a surface from a raw Win32 HWND.
 struct RawHwnd(isize);
@@ -75,6 +75,9 @@ impl HasDisplayHandle for RawHwnd {
 impl Renderer {
     /// Create a new renderer targeting the given Win32 `hwnd`.
     ///
+    /// `max_trail_verts` sets the GPU buffer capacity for trail geometry.
+    /// `show_wireframe` controls whether the surface mesh is drawn.
+    ///
     /// # Errors
     ///
     /// Returns [`GeodesicError::RenderError`] if the wgpu instance, adapter,
@@ -85,6 +88,8 @@ impl Renderer {
         height: u32,
         mesh_verts: &[[f32; 3]],
         mesh_indices: &[u32],
+        max_trail_verts: usize,
+        show_wireframe: bool,
     ) -> Result<Self, GeodesicError> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
@@ -299,16 +304,17 @@ impl Renderer {
             cache: None,
         });
 
+        let max_trail_verts = max_trail_verts.max(100);
         let trail_vbuf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("trail_vbuf"),
-            size: (MAX_TRAIL_VERTS * std::mem::size_of::<TrailVertex>()) as u64,
+            size: (max_trail_verts * std::mem::size_of::<TrailVertex>()) as u64,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         let (depth_texture, depth_view) = Self::make_depth(&device, width, height);
 
-        tracing::info!(width, height, "renderer initialised");
+        tracing::info!(width, height, max_trail_verts, "renderer initialised");
         Ok(Renderer {
             surface_config,
             device,
@@ -320,12 +326,13 @@ impl Renderer {
             surface_index_count,
             trail_pipeline,
             trail_vbuf,
-            trail_vbuf_capacity: MAX_TRAIL_VERTS,
+            trail_vbuf_capacity: max_trail_verts,
             uniform_buf,
             bind_group,
             camera,
             depth_texture,
             depth_view,
+            show_wireframe,
         })
     }
 
@@ -346,6 +353,11 @@ impl Renderer {
         });
         let view = tex.create_view(&Default::default());
         (tex, view)
+    }
+
+    /// Return the capacity of the trail vertex buffer (number of vertices).
+    pub fn trail_vbuf_capacity(&self) -> usize {
+        self.trail_vbuf_capacity
     }
 
     /// Resize the swap-chain and depth texture to the new pixel dimensions.
@@ -415,11 +427,13 @@ impl Renderer {
                 }),
                 ..Default::default()
             });
-            rp.set_pipeline(&self.surface_pipeline);
-            rp.set_bind_group(0, &self.bind_group, &[]);
-            rp.set_vertex_buffer(0, self.surface_vbuf.slice(..));
-            rp.set_index_buffer(self.surface_ibuf.slice(..), wgpu::IndexFormat::Uint32);
-            rp.draw_indexed(0..self.surface_index_count, 0, 0..1);
+            if self.show_wireframe {
+                rp.set_pipeline(&self.surface_pipeline);
+                rp.set_bind_group(0, &self.bind_group, &[]);
+                rp.set_vertex_buffer(0, self.surface_vbuf.slice(..));
+                rp.set_index_buffer(self.surface_ibuf.slice(..), wgpu::IndexFormat::Uint32);
+                rp.draw_indexed(0..self.surface_index_count, 0, 0..1);
+            }
 
             rp.set_pipeline(&self.trail_pipeline);
             rp.set_bind_group(0, &self.bind_group, &[]);

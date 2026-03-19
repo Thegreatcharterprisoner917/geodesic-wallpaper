@@ -8,14 +8,14 @@ fn red() -> [f32; 4] {
 
 #[test]
 fn new_buffer_empty() {
-    let buf = TrailBuffer::new(10, red());
+    let buf = TrailBuffer::new(10, red(), 2.0);
     assert_eq!(buf.count, 0);
     assert_eq!(buf.ordered_vertices().len(), 0);
 }
 
 #[test]
 fn push_increments_len() {
-    let mut buf = TrailBuffer::new(10, red());
+    let mut buf = TrailBuffer::new(10, red(), 2.0);
     buf.push([1.0, 2.0, 3.0]);
     assert_eq!(buf.count, 1);
     buf.push([4.0, 5.0, 6.0]);
@@ -24,7 +24,7 @@ fn push_increments_len() {
 
 #[test]
 fn push_returns_correct_len_via_ordered() {
-    let mut buf = TrailBuffer::new(5, red());
+    let mut buf = TrailBuffer::new(5, red(), 2.0);
     for i in 0..5 {
         buf.push([i as f32, 0.0, 0.0]);
     }
@@ -34,7 +34,7 @@ fn push_returns_correct_len_via_ordered() {
 #[test]
 fn buffer_wraps_at_capacity() {
     let cap = 4;
-    let mut buf = TrailBuffer::new(cap, red());
+    let mut buf = TrailBuffer::new(cap, red(), 2.0);
     for i in 0..8u32 {
         buf.push([i as f32, 0.0, 0.0]);
     }
@@ -44,7 +44,7 @@ fn buffer_wraps_at_capacity() {
 
 #[test]
 fn points_returned_in_order_before_wrap() {
-    let mut buf = TrailBuffer::new(5, red());
+    let mut buf = TrailBuffer::new(5, red(), 2.0);
     for i in 0..5u32 {
         buf.push([i as f32, 0.0, 0.0]);
     }
@@ -56,7 +56,7 @@ fn points_returned_in_order_before_wrap() {
 #[test]
 fn points_returned_in_order_after_wrap() {
     let cap = 4;
-    let mut buf = TrailBuffer::new(cap, red());
+    let mut buf = TrailBuffer::new(cap, red(), 2.0);
     for i in 0..6u32 {
         buf.push([i as f32, 0.0, 0.0]);
     }
@@ -72,7 +72,7 @@ fn points_returned_in_order_after_wrap() {
 
 #[test]
 fn clear_resets_count() {
-    let mut buf = TrailBuffer::new(8, red());
+    let mut buf = TrailBuffer::new(8, red(), 2.0);
     for i in 0..8 {
         buf.push([i as f32, 0.0, 0.0]);
     }
@@ -83,14 +83,14 @@ fn clear_resets_count() {
 
 #[test]
 fn zero_capacity_clamped_to_one() {
-    let buf = TrailBuffer::new(0, red());
+    let buf = TrailBuffer::new(0, red(), 2.0);
     assert_eq!(buf.capacity, 1);
 }
 
 #[test]
 fn fade_alpha_increases_tail_to_head() {
     let cap = 10;
-    let mut buf = TrailBuffer::new(cap, red());
+    let mut buf = TrailBuffer::new(cap, red(), 2.0);
     for i in 0..cap {
         buf.push([i as f32, 0.0, 0.0]);
     }

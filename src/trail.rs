@@ -38,15 +38,21 @@ pub struct TrailBuffer {
     pub capacity: usize,
     /// Base colour applied to every vertex before the fade alpha is computed.
     pub color: [f32; 4],
+    /// Exponent for the alpha fade curve (`1.0` = linear, `2.0` = quadratic).
+    pub fade_power: f32,
 }
 
 impl TrailBuffer {
-    /// Allocate a new trail buffer with the given `capacity` and `color`.
+    /// Allocate a new trail buffer with the given `capacity`, `color`, and `fade_power`.
+    ///
+    /// `fade_power` controls the alpha fade curve: `1.0` is linear, `2.0` is
+    /// quadratic (the original behaviour), `3.0` is cubic, etc.
     ///
     /// All slots are initialised to the zero position and zero alpha.
-    pub fn new(capacity: usize, color: [f32; 4]) -> Self {
+    pub fn new(capacity: usize, color: [f32; 4], fade_power: f32) -> Self {
         // Guard against zero capacity to avoid divide-by-zero in ordered_vertices.
         let capacity = capacity.max(1);
+        let fade_power = if fade_power <= 0.0 { 2.0 } else { fade_power };
         Self {
             vertices: vec![
                 TrailVertex {
@@ -59,6 +65,7 @@ impl TrailBuffer {
             count: 0,
             capacity,
             color,
+            fade_power,
         }
     }
 
@@ -92,7 +99,7 @@ impl TrailBuffer {
         let mut out = Vec::with_capacity(self.count);
         for i in 0..self.count {
             let age_frac = i as f32 / self.count.max(1) as f32; // 0 = oldest, 1 = newest
-            let alpha = age_frac * age_frac; // quadratic fade
+            let alpha = age_frac.powf(self.fade_power);
             let idx = if self.count == self.capacity {
                 (self.head + i) % self.capacity
             } else {
@@ -121,7 +128,7 @@ mod tests {
     /// A freshly created buffer should report zero count.
     #[test]
     fn new_buffer_is_empty() {
-        let buf = TrailBuffer::new(10, red());
+        let buf = TrailBuffer::new(10, red(), 2.0);
         assert_eq!(buf.count, 0);
         assert_eq!(buf.ordered_vertices().len(), 0);
     }
@@ -130,7 +137,7 @@ mod tests {
     #[test]
     fn count_saturates_at_capacity() {
         let cap = 5;
-        let mut buf = TrailBuffer::new(cap, red());
+        let mut buf = TrailBuffer::new(cap, red(), 2.0);
         for i in 0..20 {
             buf.push([i as f32, 0.0, 0.0]);
         }
@@ -141,7 +148,7 @@ mod tests {
     /// After clear() the buffer should behave as if newly created.
     #[test]
     fn clear_resets_buffer() {
-        let mut buf = TrailBuffer::new(8, red());
+        let mut buf = TrailBuffer::new(8, red(), 2.0);
         for i in 0..8 {
             buf.push([i as f32, 0.0, 0.0]);
         }
@@ -155,7 +162,7 @@ mod tests {
     #[test]
     fn fade_increases_from_tail_to_head() {
         let cap = 10;
-        let mut buf = TrailBuffer::new(cap, red());
+        let mut buf = TrailBuffer::new(cap, red(), 2.0);
         for i in 0..cap {
             buf.push([i as f32, 0.0, 0.0]);
         }
@@ -174,7 +181,7 @@ mod tests {
     #[test]
     fn ring_wrap_preserves_order() {
         let cap = 4;
-        let mut buf = TrailBuffer::new(cap, red());
+        let mut buf = TrailBuffer::new(cap, red(), 2.0);
         // Fill then overshoot by 2.
         for i in 0..6u32 {
             buf.push([i as f32, 0.0, 0.0]);
@@ -194,7 +201,49 @@ mod tests {
     /// divide-by-zero in ordered_vertices.
     #[test]
     fn zero_capacity_is_clamped_to_one() {
-        let buf = TrailBuffer::new(0, red());
+        let buf = TrailBuffer::new(0, red(), 2.0);
         assert_eq!(buf.capacity, 1);
+    }
+
+    /// Linear fade (power=1) should produce linearly increasing alpha values.
+    #[test]
+    fn linear_fade_power() {
+        let cap = 4;
+        let mut buf = TrailBuffer::new(cap, red(), 1.0);
+        for i in 0..cap {
+            buf.push([i as f32, 0.0, 0.0]);
+        }
+        let verts = buf.ordered_vertices();
+        // With linear fade and 4 samples: alphas should be 0/4, 1/4, 2/4, 3/4.
+        let expected = [0.0f32, 0.25, 0.5, 0.75];
+        for (i, (v, &e)) in verts.iter().zip(expected.iter()).enumerate() {
+            assert!(
+                (v.color[3] - e).abs() < 1e-5,
+                "linear fade alpha[{i}] expected {e}, got {}",
+                v.color[3]
+            );
+        }
+    }
+
+    /// Cubic fade (power=3) should produce more aggressive tail fade than quadratic.
+    #[test]
+    fn cubic_fade_is_more_aggressive_than_quadratic() {
+        let cap = 10;
+        let mut buf2 = TrailBuffer::new(cap, red(), 2.0);
+        let mut buf3 = TrailBuffer::new(cap, red(), 3.0);
+        for i in 0..cap {
+            buf2.push([i as f32, 0.0, 0.0]);
+            buf3.push([i as f32, 0.0, 0.0]);
+        }
+        let v2 = buf2.ordered_vertices();
+        let v3 = buf3.ordered_vertices();
+        // For the middle vertex, cubic should be darker (lower alpha) than quadratic.
+        let mid = cap / 2;
+        assert!(
+            v3[mid].color[3] <= v2[mid].color[3],
+            "cubic alpha ({}) should be <= quadratic alpha ({}) at midpoint",
+            v3[mid].color[3],
+            v2[mid].color[3]
+        );
     }
 }

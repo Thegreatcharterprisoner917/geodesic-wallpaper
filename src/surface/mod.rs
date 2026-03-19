@@ -4,6 +4,8 @@
 //! metric tensor, Christoffel symbols, and helpers needed by the RK4 integrator
 //! and the mesh renderer.
 
+pub mod catenoid;
+pub mod enneper;
 pub mod saddle;
 pub mod sphere;
 pub mod torus;

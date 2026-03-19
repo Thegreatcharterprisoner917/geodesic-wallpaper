@@ -1,7 +1,39 @@
+# ─── Geodesic Wallpaper Configuration ────────────────────────────────────────
+# Edit this file while the app is running — changes are hot-reloaded instantly.
+# All fields are optional; defaults are shown here.
+
+# ── Surface ────────────────────────────────────────────────────────────────────
+# Options: "torus", "sphere", "saddle", "enneper", "catenoid"
 surface = "torus"
-num_geodesics = 30
-trail_length = 300
-rotation_speed = 0.001047  # radians/sec ≈ 1 rev per 600s
+
+# ── Geodesics ─────────────────────────────────────────────────────────────────
+num_geodesics = 30          # Simultaneous geodesic curves (must be > 0)
+trail_length  = 300         # Frames a trail persists before respawning (must be > 0)
+time_step     = 0.016       # RK4 integration timestep in seconds
+
+# ── Camera ────────────────────────────────────────────────────────────────────
+rotation_speed         = 0.001047  # Azimuth orbit speed, radians/sec (~1 rev/100 min)
+camera_distance        = 6.0       # Distance from origin to camera eye
+camera_elevation       = 0.4       # Elevation above XY plane in radians
+camera_fov             = 0.8       # Vertical field-of-view in radians
+camera_elevation_speed = 0.0       # Elevation drift speed (0 = disabled)
+
+# ── Rendering ─────────────────────────────────────────────────────────────────
+show_wireframe    = true     # Draw the surface wireframe mesh
+max_trail_verts   = 100000   # GPU trail buffer capacity (larger = more VRAM)
+trail_fade_power  = 2.0      # Alpha fade exponent: 1=linear, 2=quadratic, 3=cubic
+color_mode        = "cycle"  # "cycle" or "random" colour assignment per geodesic
+target_fps        = 30       # Target render frame rate
+
+# ── Torus parameters (only used when surface = "torus") ───────────────────────
+torus_R = 2.0  # Major radius (center to tube center); must be > torus_r
+torus_r = 0.7  # Minor radius (tube radius); must be > 0
+
+# ── Colour palette ────────────────────────────────────────────────────────────
+# CSS hex strings. Geodesics cycle through or randomly pick from this list.
 color_palette = ["#4488FF", "#88DDFF", "#FFD700", "#88FF88", "#FF88CC"]
-torus_R = 2.0
-torus_r = 0.7
+
+# ── UX ────────────────────────────────────────────────────────────────────────
+show_hud          = false  # Log FPS/surface info to console every second
+epilepsy_warning  = true   # Show photosensitivity notice on startup
+multi_monitor     = false  # Span wallpaper across all monitors (virtual screen)
