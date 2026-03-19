@@ -96,10 +96,7 @@ impl Surface for Catenoid {
     fn random_position(&self, rng: &mut dyn rand::RngCore) -> (f32, f32) {
         use rand::Rng;
         let v_max = 3.0 * self.c;
-        (
-            rng.gen_range(0.0..TAU),
-            rng.gen_range(-v_max..v_max),
-        )
+        (rng.gen_range(0.0..TAU), rng.gen_range(-v_max..v_max))
     }
 
     fn random_tangent(&self, u: f32, v: f32, rng: &mut dyn rand::RngCore) -> (f32, f32) {
@@ -159,7 +156,12 @@ mod tests {
         let cat = Catenoid::new(1.0);
         let g = cat.metric(0.5, 0.3);
         assert!((g[0][1]).abs() < 1e-5, "g_01 not zero: {}", g[0][1]);
-        assert!((g[0][0] - g[1][1]).abs() < 1e-4, "g_00 != g_11: {} {}", g[0][0], g[1][1]);
+        assert!(
+            (g[0][0] - g[1][1]).abs() < 1e-4,
+            "g_00 != g_11: {} {}",
+            g[0][0],
+            g[1][1]
+        );
     }
 
     #[test]
@@ -201,7 +203,12 @@ mod tests {
         let c = Catenoid::new(1.0);
         for v in [0.0f32, 0.5, 1.0, -0.7] {
             let g = c.metric(0.3, v);
-            assert!((g[0][0] - g[1][1]).abs() < 1e-4, "not conformal at v={v}: g00={} g11={}", g[0][0], g[1][1]);
+            assert!(
+                (g[0][0] - g[1][1]).abs() < 1e-4,
+                "not conformal at v={v}: g00={} g11={}",
+                g[0][0],
+                g[1][1]
+            );
             assert!(g[0][1].abs() < 1e-5, "g_uv != 0 at v={v}");
         }
     }

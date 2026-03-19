@@ -350,7 +350,12 @@ impl Renderer {
             depth_texture,
             depth_view,
             show_wireframe,
-            background_color: wgpu::Color { r: 0.02, g: 0.02, b: 0.05, a: 1.0 },
+            background_color: wgpu::Color {
+                r: 0.02,
+                g: 0.02,
+                b: 0.05,
+                a: 1.0,
+            },
             elapsed_secs: 0.0,
             light_dir: [1.0, 1.0, 1.0],
             show_fps_hud: false,
@@ -403,7 +408,11 @@ impl Renderer {
 
         let offscreen_tex = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("headless_color"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -613,14 +622,14 @@ impl Renderer {
         // as a placeholder. This is equivalent to what wgpu's own test helpers do.
         let placeholder_hwnd = windows::Win32::Foundation::HWND(1 as *mut core::ffi::c_void);
         let raw = RawHwnd(placeholder_hwnd.0 as isize);
-        let wgpu_surface = unsafe {
-            instance
-                .create_surface_unsafe(
-                    wgpu::SurfaceTargetUnsafe::from_window(&raw)
-                        .map_err(|e| GeodesicError::render(format!("headless surface target: {e}")))?
-                )
-                .map_err(|e| GeodesicError::render(format!("headless create_surface: {e}")))?
-        };
+        let wgpu_surface =
+            unsafe {
+                instance
+                    .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&raw).map_err(
+                        |e| GeodesicError::render(format!("headless surface target: {e}")),
+                    )?)
+                    .map_err(|e| GeodesicError::render(format!("headless create_surface: {e}")))?
+            };
 
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -653,7 +662,12 @@ impl Renderer {
             depth_texture,
             depth_view,
             show_wireframe: true,
-            background_color: wgpu::Color { r: 0.02, g: 0.02, b: 0.05, a: 1.0 },
+            background_color: wgpu::Color {
+                r: 0.02,
+                g: 0.02,
+                b: 0.05,
+                a: 1.0,
+            },
             elapsed_secs: 0.0,
             light_dir: [1.0, 1.0, 1.0],
             show_fps_hud: false,
@@ -686,11 +700,13 @@ impl Renderer {
             time: self.elapsed_secs,
             _pad: [0.0; 3],
         };
-        self.queue.write_buffer(&self.uniform_buf, 0, bytemuck::bytes_of(&uniforms));
+        self.queue
+            .write_buffer(&self.uniform_buf, 0, bytemuck::bytes_of(&uniforms));
 
         if !trail_verts.is_empty() {
             let n = trail_verts.len().min(self.trail_vbuf_capacity);
-            self.queue.write_buffer(&self.trail_vbuf, 0, bytemuck::cast_slice(&trail_verts[..n]));
+            self.queue
+                .write_buffer(&self.trail_vbuf, 0, bytemuck::cast_slice(&trail_verts[..n]));
         }
 
         let color_view = offscreen_tex.create_view(&Default::default());
@@ -768,7 +784,11 @@ impl Renderer {
                     rows_per_image: Some(height),
                 },
             },
-            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
         );
 
         self.queue.submit(std::iter::once(enc.finish()));
@@ -859,16 +879,20 @@ impl Renderer {
             .iter()
             .flat_map(|v| bytemuck::bytes_of(v).iter().copied())
             .collect();
-        self.surface_vbuf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("surface_vbuf"),
-            contents: &verts_bytes,
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        self.surface_ibuf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("surface_ibuf"),
-            contents: bytemuck::cast_slice(&line_indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        self.surface_vbuf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("surface_vbuf"),
+                contents: &verts_bytes,
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        self.surface_ibuf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("surface_ibuf"),
+                contents: bytemuck::cast_slice(&line_indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
         self.surface_index_count = line_indices.len() as u32;
     }
 

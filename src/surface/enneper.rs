@@ -67,10 +67,7 @@ impl Surface for Enneper {
     fn metric(&self, u: f32, v: f32) -> [[f32; 2]; 2] {
         let eu = self.du(u, v);
         let ev = self.dv(u, v);
-        [
-            [eu.dot(eu), eu.dot(ev)],
-            [ev.dot(eu), ev.dot(ev)],
-        ]
+        [[eu.dot(eu), eu.dot(ev)], [ev.dot(eu), ev.dot(ev)]]
     }
 
     fn christoffel(&self, u: f32, v: f32) -> [[[f32; 2]; 2]; 2] {
@@ -125,15 +122,16 @@ impl Surface for Enneper {
         let ev = self.dv(u, v);
         let n = eu.cross(ev);
         let len = n.length();
-        if len > 1e-12 { n / len } else { Vec3::Z }
+        if len > 1e-12 {
+            n / len
+        } else {
+            Vec3::Z
+        }
     }
 
     fn random_position(&self, rng: &mut dyn rand::RngCore) -> (f32, f32) {
         let e = self.extent;
-        (
-            rng.gen_range(-e..e),
-            rng.gen_range(-e..e),
-        )
+        (rng.gen_range(-e..e), rng.gen_range(-e..e))
     }
 
     fn random_tangent(&self, u: f32, v: f32, rng: &mut dyn rand::RngCore) -> (f32, f32) {
@@ -187,7 +185,10 @@ mod tests {
     fn enneper_position_at_origin() {
         let s = Enneper::new(1.5);
         let p = s.position(0.0, 0.0);
-        assert!(p.length() < 1e-6, "position at origin should be zero: {p:?}");
+        assert!(
+            p.length() < 1e-6,
+            "position at origin should be zero: {p:?}"
+        );
     }
 
     #[test]

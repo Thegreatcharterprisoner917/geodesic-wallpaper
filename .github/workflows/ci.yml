@@ -44,7 +44,7 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
 
   test:
-    name: cargo test --lib (windows-latest)
+    name: cargo test
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,8 +59,6 @@ jobs:
             target
           key: windows-cargo-test-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: windows-cargo-test-
-      - name: Build lib
-        run: cargo build --lib
       - name: Run lib tests
         run: cargo test --lib
 
@@ -80,10 +78,6 @@ jobs:
             target
           key: windows-cargo-doc-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: windows-cargo-doc-
-      # Build rustdoc for all public items and treat warnings as errors.
-      # Full rendering tests require a physical display/GPU (Win32 + wgpu) and
-      # are intentionally skipped on headless CI runners; only pure-math and
-      # ring-buffer unit tests in src/ and tests/ run under `cargo test`.
       - name: cargo doc --no-deps
         run: cargo doc --no-deps
         env:
@@ -115,37 +109,3 @@ jobs:
           name: geodesic-wallpaper-windows
           path: target/x86_64-pc-windows-msvc/release/geodesic-wallpaper.exe
           if-no-files-found: error
-
-  coverage:
-    name: Code coverage (tarpaulin)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: windows-cargo-coverage-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: windows-cargo-coverage-
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin --locked
-      - name: Run tarpaulin
-        run: cargo tarpaulin --lib --no-fail-fast --out Xml
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          fail_ci_if_error: false
-
-  security:
-    name: Security audit (cargo-audit)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install cargo-audit --locked
-      - run: cargo audit

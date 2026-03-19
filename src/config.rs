@@ -78,7 +78,6 @@ pub struct Config {
     pub time_step: f32,
 
     // ── Camera ─────────────────────────────────────────────────────────────
-
     /// Distance from the origin to the camera eye.
     ///
     /// Default: `6.0`.
@@ -105,7 +104,6 @@ pub struct Config {
     pub camera_elevation_speed: f32,
 
     // ── Rendering ──────────────────────────────────────────────────────────
-
     /// Whether to render the surface wireframe mesh.
     ///
     /// Default: `true`.
@@ -139,7 +137,6 @@ pub struct Config {
     pub target_fps: u32,
 
     // ── UX ─────────────────────────────────────────────────────────────────
-
     /// Log FPS and surface info periodically to the console.
     ///
     /// Default: `false`.
@@ -160,7 +157,6 @@ pub struct Config {
     pub multi_monitor: bool,
 
     // ── New features branch additions ──────────────────────────────────────
-
     /// Optional RNG seed for reproducible geodesic spawning.
     ///
     /// When `None` (the default) entropy is used.
@@ -507,9 +503,7 @@ impl Config {
             );
         }
         if self.trail_length == 0 {
-            warnings.push(
-                "trail_length is 0 — trails will be invisible; set to at least 1".into(),
-            );
+            warnings.push("trail_length is 0 — trails will be invisible; set to at least 1".into());
         }
         if self.torus_R <= 0.0 {
             warnings.push(format!(
@@ -536,9 +530,7 @@ impl Config {
             ));
         }
         if self.color_palette.is_empty() {
-            warnings.push(
-                "color_palette is empty — a fallback grey colour will be used".into(),
-            );
+            warnings.push("color_palette is empty — a fallback grey colour will be used".into());
         }
         if self.max_trail_verts < 100 {
             warnings.push(format!(
@@ -562,7 +554,13 @@ impl Config {
             ));
         }
         let known_surfaces = [
-            "torus", "sphere", "saddle", "enneper", "catenoid", "helicoid", "hyperboloid",
+            "torus",
+            "sphere",
+            "saddle",
+            "enneper",
+            "catenoid",
+            "helicoid",
+            "hyperboloid",
         ];
         if !known_surfaces.contains(&self.surface.as_str()) {
             warnings.push(format!(
@@ -599,12 +597,20 @@ impl Config {
 
     /// Return the effective target FPS, clamping zero to 30.
     pub fn effective_target_fps(&self) -> u32 {
-        if self.target_fps == 0 { 30 } else { self.target_fps }
+        if self.target_fps == 0 {
+            30
+        } else {
+            self.target_fps
+        }
     }
 
     /// Return the effective trail fade power, clamping non-positive values to 2.0.
     pub fn effective_fade_power(&self) -> f32 {
-        if self.trail_fade_power <= 0.0 { 2.0 } else { self.trail_fade_power }
+        if self.trail_fade_power <= 0.0 {
+            2.0
+        } else {
+            self.trail_fade_power
+        }
     }
 
     /// Compute the effective colour palette, applying gradient interpolation if configured.
@@ -614,10 +620,18 @@ impl Config {
     /// - `"hsv"`: interpolates in HSV space between `gradient_stops`.
     pub fn effective_colors(&self) -> Vec<[f32; 4]> {
         if self.gradient_mode == "none" || self.gradient_stops.is_empty() {
-            return self.color_palette.iter().map(|s| Self::parse_color(s)).collect();
+            return self
+                .color_palette
+                .iter()
+                .map(|s| Self::parse_color(s))
+                .collect();
         }
 
-        let stops: Vec<[f32; 4]> = self.gradient_stops.iter().map(|s| Self::parse_color(s)).collect();
+        let stops: Vec<[f32; 4]> = self
+            .gradient_stops
+            .iter()
+            .map(|s| Self::parse_color(s))
+            .collect();
         let n = self.num_geodesics.max(1);
 
         match self.gradient_mode.as_str() {
@@ -633,7 +647,11 @@ impl Config {
                     Self::lerp_color_hsv(&stops, t)
                 })
                 .collect(),
-            _ => self.color_palette.iter().map(|s| Self::parse_color(s)).collect(),
+            _ => self
+                .color_palette
+                .iter()
+                .map(|s| Self::parse_color(s))
+                .collect(),
         }
     }
 
@@ -665,8 +683,12 @@ impl Config {
         let hb = Self::rgb_to_hsv(stops[idx + 1]);
         // Interpolate hue along shortest arc
         let mut dh = hb[0] - ha[0];
-        if dh > 0.5 { dh -= 1.0; }
-        if dh < -0.5 { dh += 1.0; }
+        if dh > 0.5 {
+            dh -= 1.0;
+        }
+        if dh < -0.5 {
+            dh += 1.0;
+        }
         let h = (ha[0] + dh * frac).rem_euclid(1.0);
         let s = ha[1] + (hb[1] - ha[1]) * frac;
         let v = ha[2] + (hb[2] - ha[2]) * frac;
@@ -725,40 +747,108 @@ impl Config {
         };
 
         let mut out = self.clone();
-        if let Some(v) = profile.surface { out.surface = v; }
-        if let Some(v) = profile.num_geodesics { out.num_geodesics = v; }
-        if let Some(v) = profile.trail_length { out.trail_length = v; }
-        if let Some(v) = profile.rotation_speed { out.rotation_speed = v; }
-        if let Some(v) = profile.color_palette { out.color_palette = v; }
-        if let Some(v) = profile.torus_R { out.torus_R = v; }
-        if let Some(v) = profile.torus_r { out.torus_r = v; }
-        if let Some(v) = profile.time_step { out.time_step = v; }
-        if let Some(v) = profile.camera_distance { out.camera_distance = v; }
-        if let Some(v) = profile.camera_elevation { out.camera_elevation = v; }
-        if let Some(v) = profile.camera_fov { out.camera_fov = v; }
-        if let Some(v) = profile.camera_elevation_speed { out.camera_elevation_speed = v; }
-        if let Some(v) = profile.show_wireframe { out.show_wireframe = v; }
-        if let Some(v) = profile.max_trail_verts { out.max_trail_verts = v; }
-        if let Some(v) = profile.trail_fade_power { out.trail_fade_power = v; }
-        if let Some(v) = profile.color_mode { out.color_mode = v; }
-        if let Some(v) = profile.target_fps { out.target_fps = v; }
-        if let Some(v) = profile.show_hud { out.show_hud = v; }
-        if let Some(v) = profile.epilepsy_warning { out.epilepsy_warning = v; }
-        if let Some(v) = profile.multi_monitor { out.multi_monitor = v; }
-        if let Some(v) = profile.seed { out.seed = Some(v); }
-        if let Some(v) = profile.background_color { out.background_color = v; }
-        if let Some(v) = profile.trail_mode { out.trail_mode = v; }
-        if let Some(v) = profile.color_cycle_speed { out.color_cycle_speed = v; }
-        if let Some(v) = profile.gradient_stops { out.gradient_stops = v; }
-        if let Some(v) = profile.gradient_mode { out.gradient_mode = v; }
-        if let Some(v) = profile.preset_cycle_secs { out.preset_cycle_secs = Some(v); }
-        if let Some(v) = profile.presets_order { out.presets_order = v; }
-        if let Some(v) = profile.catenoid_c { out.catenoid_c = v; }
-        if let Some(v) = profile.helicoid_c { out.helicoid_c = v; }
-        if let Some(v) = profile.hyperboloid_a { out.hyperboloid_a = v; }
-        if let Some(v) = profile.hyperboloid_b { out.hyperboloid_b = v; }
-        if let Some(v) = profile.light_dir { out.light_dir = v; }
-        if let Some(v) = profile.color_cycle_enabled { out.color_cycle_enabled = v; }
+        if let Some(v) = profile.surface {
+            out.surface = v;
+        }
+        if let Some(v) = profile.num_geodesics {
+            out.num_geodesics = v;
+        }
+        if let Some(v) = profile.trail_length {
+            out.trail_length = v;
+        }
+        if let Some(v) = profile.rotation_speed {
+            out.rotation_speed = v;
+        }
+        if let Some(v) = profile.color_palette {
+            out.color_palette = v;
+        }
+        if let Some(v) = profile.torus_R {
+            out.torus_R = v;
+        }
+        if let Some(v) = profile.torus_r {
+            out.torus_r = v;
+        }
+        if let Some(v) = profile.time_step {
+            out.time_step = v;
+        }
+        if let Some(v) = profile.camera_distance {
+            out.camera_distance = v;
+        }
+        if let Some(v) = profile.camera_elevation {
+            out.camera_elevation = v;
+        }
+        if let Some(v) = profile.camera_fov {
+            out.camera_fov = v;
+        }
+        if let Some(v) = profile.camera_elevation_speed {
+            out.camera_elevation_speed = v;
+        }
+        if let Some(v) = profile.show_wireframe {
+            out.show_wireframe = v;
+        }
+        if let Some(v) = profile.max_trail_verts {
+            out.max_trail_verts = v;
+        }
+        if let Some(v) = profile.trail_fade_power {
+            out.trail_fade_power = v;
+        }
+        if let Some(v) = profile.color_mode {
+            out.color_mode = v;
+        }
+        if let Some(v) = profile.target_fps {
+            out.target_fps = v;
+        }
+        if let Some(v) = profile.show_hud {
+            out.show_hud = v;
+        }
+        if let Some(v) = profile.epilepsy_warning {
+            out.epilepsy_warning = v;
+        }
+        if let Some(v) = profile.multi_monitor {
+            out.multi_monitor = v;
+        }
+        if let Some(v) = profile.seed {
+            out.seed = Some(v);
+        }
+        if let Some(v) = profile.background_color {
+            out.background_color = v;
+        }
+        if let Some(v) = profile.trail_mode {
+            out.trail_mode = v;
+        }
+        if let Some(v) = profile.color_cycle_speed {
+            out.color_cycle_speed = v;
+        }
+        if let Some(v) = profile.gradient_stops {
+            out.gradient_stops = v;
+        }
+        if let Some(v) = profile.gradient_mode {
+            out.gradient_mode = v;
+        }
+        if let Some(v) = profile.preset_cycle_secs {
+            out.preset_cycle_secs = Some(v);
+        }
+        if let Some(v) = profile.presets_order {
+            out.presets_order = v;
+        }
+        if let Some(v) = profile.catenoid_c {
+            out.catenoid_c = v;
+        }
+        if let Some(v) = profile.helicoid_c {
+            out.helicoid_c = v;
+        }
+        if let Some(v) = profile.hyperboloid_a {
+            out.hyperboloid_a = v;
+        }
+        if let Some(v) = profile.hyperboloid_b {
+            out.hyperboloid_b = v;
+        }
+        if let Some(v) = profile.light_dir {
+            out.light_dir = v;
+        }
+        if let Some(v) = profile.color_cycle_enabled {
+            out.color_cycle_enabled = v;
+        }
         out
     }
 }
@@ -904,14 +994,23 @@ target_fps = 60
         );
         assert!(cfg.trail_length > 0, "trail_length must be > 0");
         let known = [
-            "torus", "sphere", "saddle", "enneper", "catenoid", "helicoid", "hyperboloid",
+            "torus",
+            "sphere",
+            "saddle",
+            "enneper",
+            "catenoid",
+            "helicoid",
+            "hyperboloid",
         ];
         assert!(
             known.contains(&cfg.surface.as_str()),
             "unexpected default surface: {}",
             cfg.surface
         );
-        assert!(cfg.validate().is_empty(), "default config should have no warnings");
+        assert!(
+            cfg.validate().is_empty(),
+            "default config should have no warnings"
+        );
     }
 
     #[test]

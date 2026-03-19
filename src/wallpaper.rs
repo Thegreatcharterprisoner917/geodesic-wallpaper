@@ -13,8 +13,8 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, PostQuitMessage, RegisterClassExW, SetWindowPos, ShowWindow,
     CS_HREDRAW, CS_VREDRAW, HWND_BOTTOM, SWP_NOACTIVATE, SWP_NOZORDER, SW_SHOW, WINDOWPOS,
-    WM_DESTROY, WM_KEYDOWN, WM_WINDOWPOSCHANGING, WNDCLASSEXW, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_POPUP, WS_VISIBLE,
+    WM_DESTROY, WM_KEYDOWN, WM_WINDOWPOSCHANGING, WNDCLASSEXW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    WS_POPUP, WS_VISIBLE,
 };
 
 /// Global sender for key events out of the window procedure.
@@ -118,12 +118,7 @@ pub fn enumerate_monitors() -> Vec<(i32, i32, u32, u32)> {
 
     unsafe {
         let ptr = &mut results as *mut Vec<(i32, i32, u32, u32)>;
-        let _ = EnumDisplayMonitors(
-            HDC::default(),
-            None,
-            Some(monitor_cb),
-            LPARAM(ptr as isize),
-        );
+        let _ = EnumDisplayMonitors(HDC::default(), None, Some(monitor_cb), LPARAM(ptr as isize));
     }
 
     results
@@ -149,10 +144,10 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
         if msg == WM_KEYDOWN {
             let vk = wp.0 as u32;
             let event = match vk {
-                0x53 => Some(KeyEvent::CycleSurface),   // S
-                0x52 => Some(KeyEvent::ResetGeodesics), // R
-                0x46 => Some(KeyEvent::ToggleFpsHud),   // F
-                0xBB | 0x6B => Some(KeyEvent::SpeedUp), // + / numpad +
+                0x53 => Some(KeyEvent::CycleSurface),     // S
+                0x52 => Some(KeyEvent::ResetGeodesics),   // R
+                0x46 => Some(KeyEvent::ToggleFpsHud),     // F
+                0xBB | 0x6B => Some(KeyEvent::SpeedUp),   // + / numpad +
                 0xBD | 0x6D => Some(KeyEvent::SpeedDown), // - / numpad -
                 _ => None,
             };

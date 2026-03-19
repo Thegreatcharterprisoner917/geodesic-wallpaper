@@ -182,7 +182,12 @@ mod tests {
         let v = 0.5_f32;
         let g = hyp.metric(0.0, v);
         let expected = 4.0 * v.cosh() * v.cosh();
-        assert!((g[0][0] - expected).abs() < 1e-4, "g_uu={} expected={}", g[0][0], expected);
+        assert!(
+            (g[0][0] - expected).abs() < 1e-4,
+            "g_uu={} expected={}",
+            g[0][0],
+            expected
+        );
     }
 
     #[test]

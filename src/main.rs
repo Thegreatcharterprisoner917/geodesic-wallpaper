@@ -26,7 +26,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, MessageBoxW, PeekMessageW, TranslateMessage, MSG, MB_ICONWARNING, MB_OK,
+    DispatchMessageW, MessageBoxW, PeekMessageW, TranslateMessage, MB_ICONWARNING, MB_OK, MSG,
     PM_REMOVE,
 };
 
@@ -161,7 +161,7 @@ fn parse_bg_color(hex: &str) -> (f64, f64, f64) {
 fn screen_size(multi_monitor: bool) -> (i32, i32) {
     unsafe {
         use windows::Win32::UI::WindowsAndMessaging::{
-            GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
+            GetSystemMetrics, SM_CXSCREEN, SM_CXVIRTUALSCREEN, SM_CYSCREEN, SM_CYVIRTUALSCREEN,
         };
         if multi_monitor {
             let w = GetSystemMetrics(SM_CXVIRTUALSCREEN);
@@ -172,7 +172,11 @@ fn screen_size(multi_monitor: bool) -> (i32, i32) {
         }
         let w = GetSystemMetrics(SM_CXSCREEN);
         let h = GetSystemMetrics(SM_CYSCREEN);
-        if w > 0 && h > 0 { (w, h) } else { (1920, 1080) }
+        if w > 0 && h > 0 {
+            (w, h)
+        } else {
+            (1920, 1080)
+        }
     }
 }
 
@@ -264,7 +268,11 @@ fn run_headless(args: &Args, cfg: &Config) -> Result<(), GeodesicError> {
         let (du, dv) = surf.random_tangent(u, v, &mut rng);
         let ci = i % colors.len().max(1);
         geodesics.push(Geodesic::new(u, v, du, dv, cfg.trail_length, ci));
-        trails.push(TrailBuffer::new(cfg.trail_length, colors[ci], cfg.effective_fade_power()));
+        trails.push(TrailBuffer::new(
+            cfg.trail_length,
+            colors[ci],
+            cfg.effective_fade_power(),
+        ));
     }
 
     let dt = cfg.time_step;
@@ -278,7 +286,9 @@ fn run_headless(args: &Args, cfg: &Config) -> Result<(), GeodesicError> {
             .iter_mut()
             .zip(trails.iter_mut())
             .for_each(|(geo, trail)| {
-                if !geo.alive { return; }
+                if !geo.alive {
+                    return;
+                }
                 let pos = surf_ref.position(geo.u, geo.v);
                 trail.push([pos.x, pos.y, pos.z]);
                 geo.step(surf_ref, dt);
@@ -517,13 +527,7 @@ fn run() -> Result<(), GeodesicError> {
                 let show_wire = renderer.show_wireframe;
                 let max_tv = renderer.trail_vbuf_capacity();
                 renderer = pollster::block_on(Renderer::new(
-                    hwnd,
-                    sw as u32,
-                    sh as u32,
-                    &mv,
-                    &mi,
-                    max_tv,
-                    show_wire,
+                    hwnd, sw as u32, sh as u32, &mv, &mi, max_tv, show_wire,
                 ))?;
                 renderer.camera = geodesic_wallpaper::renderer::camera::Camera::new_with_params(
                     sw as f32 / sh as f32,
@@ -536,7 +540,17 @@ fn run() -> Result<(), GeodesicError> {
                 geodesics.clear();
                 trails.clear();
                 let (tl, ng, fp, cm) = {
-                    let c = shared_cfg.read().map(|c| (c.trail_length, c.num_geodesics, c.effective_fade_power(), c.color_mode.clone())).unwrap_or((300, 30, 2.0, "cycle".into()));
+                    let c = shared_cfg
+                        .read()
+                        .map(|c| {
+                            (
+                                c.trail_length,
+                                c.num_geodesics,
+                                c.effective_fade_power(),
+                                c.color_mode.clone(),
+                            )
+                        })
+                        .unwrap_or((300, 30, 2.0, "cycle".into()));
                     c
                 };
                 for i in 0..ng {
@@ -627,7 +641,10 @@ fn run() -> Result<(), GeodesicError> {
         if fps_log_timer >= 5.0 {
             fps_log_timer = 0.0;
             if !frame_times.is_empty() {
-                let avg_ms: f32 = frame_times.iter().map(|d| d.as_secs_f32() * 1000.0).sum::<f32>()
+                let avg_ms: f32 = frame_times
+                    .iter()
+                    .map(|d| d.as_secs_f32() * 1000.0)
+                    .sum::<f32>()
                     / frame_times.len() as f32;
                 let fps = 1000.0 / avg_ms;
                 if renderer.show_fps_hud {
@@ -676,7 +693,14 @@ fn run() -> Result<(), GeodesicError> {
                     trails.clear();
                     let (tl, ng, fp, cm) = shared_cfg
                         .read()
-                        .map(|c| (c.trail_length, c.num_geodesics, c.effective_fade_power(), c.color_mode.clone()))
+                        .map(|c| {
+                            (
+                                c.trail_length,
+                                c.num_geodesics,
+                                c.effective_fade_power(),
+                                c.color_mode.clone(),
+                            )
+                        })
                         .unwrap_or((300, 30, 2.0, "cycle".into()));
                     for i in 0..ng {
                         let (u, v) = surf.random_position(&mut rng);
@@ -699,7 +723,14 @@ fn run() -> Result<(), GeodesicError> {
                 KeyEvent::ResetGeodesics => {
                     let (tl, ng, fp, cm) = shared_cfg
                         .read()
-                        .map(|c| (c.trail_length, c.num_geodesics, c.effective_fade_power(), c.color_mode.clone()))
+                        .map(|c| {
+                            (
+                                c.trail_length,
+                                c.num_geodesics,
+                                c.effective_fade_power(),
+                                c.color_mode.clone(),
+                            )
+                        })
                         .unwrap_or((300, 30, 2.0, "cycle".into()));
                     geodesics.clear();
                     trails.clear();
@@ -725,8 +756,9 @@ fn run() -> Result<(), GeodesicError> {
         }
 
         // Read current config snapshot.
-        let (rot, bg_color_str, cycle_enabled, cycle_speed, light_dir_cfg) =
-            shared_cfg.read().map(|c| {
+        let (rot, bg_color_str, cycle_enabled, cycle_speed, light_dir_cfg) = shared_cfg
+            .read()
+            .map(|c| {
                 (
                     c.rotation_speed,
                     c.background_color.clone(),
@@ -734,7 +766,8 @@ fn run() -> Result<(), GeodesicError> {
                     c.color_cycle_speed,
                     c.light_dir,
                 )
-            }).unwrap_or((0.001047, "#050510".into(), false, 0.0, [1.0, 1.0, 1.0]));
+            })
+            .unwrap_or((0.001047, "#050510".into(), false, 0.0, [1.0, 1.0, 1.0]));
 
         // Update light direction.
         renderer.light_dir = light_dir_cfg;
@@ -792,7 +825,13 @@ fn run() -> Result<(), GeodesicError> {
         // Respawn dead geodesics sequentially (needs mutable rng).
         let (tl, cm, fp) = shared_cfg
             .read()
-            .map(|c| (c.trail_length, c.color_mode.clone(), c.effective_fade_power()))
+            .map(|c| {
+                (
+                    c.trail_length,
+                    c.color_mode.clone(),
+                    c.effective_fade_power(),
+                )
+            })
             .unwrap_or((300, "cycle".into(), 2.0));
 
         for (i, geo) in geodesics.iter_mut().enumerate() {

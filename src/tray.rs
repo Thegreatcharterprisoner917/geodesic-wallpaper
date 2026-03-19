@@ -21,8 +21,8 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, GetCursorPos,
     PostQuitMessage, RegisterClassExW, SetForegroundWindow, TrackPopupMenu, CS_HREDRAW, CS_VREDRAW,
-    MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, WM_APP, WM_DESTROY,
-    WNDCLASSEXW, WS_EX_NOACTIVATE, WS_OVERLAPPED,
+    MF_SEPARATOR, MF_STRING, TPM_BOTTOMALIGN, TPM_LEFTALIGN, WM_APP, WM_DESTROY, WNDCLASSEXW,
+    WS_EX_NOACTIVATE, WS_OVERLAPPED,
 };
 
 /// Shared state exposed to the main render loop by the tray thread.
@@ -183,12 +183,7 @@ unsafe fn tray_thread(initial_surface: String, state_ptr: usize) {
     let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
 }
 
-unsafe extern "system" fn tray_wnd_proc(
-    hwnd: HWND,
-    msg: u32,
-    wp: WPARAM,
-    lp: LPARAM,
-) -> LRESULT {
+unsafe extern "system" fn tray_wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     unsafe {
         if msg == WM_DESTROY {
             PostQuitMessage(0);
@@ -233,13 +228,23 @@ unsafe fn show_tray_menu(hwnd: HWND) {
     } else {
         "Pause\0".encode_utf16().collect()
     };
-    let _ = AppendMenuW(hmenu, MF_STRING, IDM_PAUSE as usize, windows::core::PCWSTR(pause_label.as_ptr()));
+    let _ = AppendMenuW(
+        hmenu,
+        MF_STRING,
+        IDM_PAUSE as usize,
+        windows::core::PCWSTR(pause_label.as_ptr()),
+    );
     let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, windows::core::PCWSTR::null());
 
     macro_rules! menu_item {
         ($label:expr, $id:expr) => {{
             let label: Vec<u16> = $label.encode_utf16().collect();
-            let _ = AppendMenuW(hmenu, MF_STRING, $id as usize, windows::core::PCWSTR(label.as_ptr()));
+            let _ = AppendMenuW(
+                hmenu,
+                MF_STRING,
+                $id as usize,
+                windows::core::PCWSTR(label.as_ptr()),
+            );
         }};
     }
     menu_item!("Surface: Torus\0", IDM_TORUS);
@@ -253,7 +258,15 @@ unsafe fn show_tray_menu(hwnd: HWND) {
     let mut pt = windows::Win32::Foundation::POINT::default();
     let _ = GetCursorPos(&mut pt);
     let _ = SetForegroundWindow(hwnd);
-    let _ = TrackPopupMenu(hmenu, TPM_LEFTALIGN | TPM_BOTTOMALIGN, pt.x, pt.y, 0, hwnd, None);
+    let _ = TrackPopupMenu(
+        hmenu,
+        TPM_LEFTALIGN | TPM_BOTTOMALIGN,
+        pt.x,
+        pt.y,
+        0,
+        hwnd,
+        None,
+    );
     let _ = DestroyMenu(hmenu);
 }
 

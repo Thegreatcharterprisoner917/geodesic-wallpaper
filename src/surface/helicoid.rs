@@ -153,7 +153,12 @@ mod tests {
         let v = 1.5_f32;
         let g = hel.metric(0.0, v);
         let expected = v * v + 4.0;
-        assert!((g[0][0] - expected).abs() < 1e-4, "g_uu={} expected={}", g[0][0], expected);
+        assert!(
+            (g[0][0] - expected).abs() < 1e-4,
+            "g_uu={} expected={}",
+            g[0][0],
+            expected
+        );
     }
 
     #[test]
