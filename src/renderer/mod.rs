@@ -652,6 +652,7 @@ impl Renderer {
             camera,
             depth_texture,
             depth_view,
+            show_wireframe: true,
             background_color: wgpu::Color { r: 0.02, g: 0.02, b: 0.05, a: 1.0 },
             elapsed_secs: 0.0,
             light_dir: [1.0, 1.0, 1.0],
