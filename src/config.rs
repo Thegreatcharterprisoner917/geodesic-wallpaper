@@ -859,7 +859,12 @@ pub type SharedConfig = Arc<RwLock<Config>>;
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::bool_assert_comparison,
+    clippy::field_reassign_with_default
+)]
 mod tests {
     use super::*;
     use std::io::Write;

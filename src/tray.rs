@@ -158,7 +158,7 @@ unsafe fn tray_thread(initial_surface: String, state_ptr: usize) {
         szTip: tip,
         ..Default::default()
     };
-    let _ = Shell_NotifyIconW(NIM_ADD, &mut nid);
+    let _ = Shell_NotifyIconW(NIM_ADD, &nid);
 
     tracing::info!(surface = %initial_surface, "tray icon created");
 
@@ -180,7 +180,7 @@ unsafe fn tray_thread(initial_surface: String, state_ptr: usize) {
     }
 
     // Clean up tray icon before thread exits.
-    let _ = Shell_NotifyIconW(NIM_DELETE, &mut nid);
+    let _ = Shell_NotifyIconW(NIM_DELETE, &nid);
 }
 
 unsafe extern "system" fn tray_wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {

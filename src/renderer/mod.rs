@@ -759,7 +759,7 @@ impl Renderer {
         let bytes_per_pixel = 4u32; // BGRA8
         let unpadded_row = width * bytes_per_pixel;
         let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let padded_row = (unpadded_row + align - 1) / align * align;
+        let padded_row = unpadded_row.div_ceil(align) * align;
         let buf_size = (padded_row * height) as u64;
 
         let readback_buf = self.device.create_buffer(&wgpu::BufferDescriptor {
