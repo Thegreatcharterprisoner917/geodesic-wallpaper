@@ -149,7 +149,7 @@ unsafe fn tray_thread(initial_surface: String, state_ptr: usize) {
     for (i, c) in tip_text.encode_utf16().enumerate().take(127) {
         tip[i] = c;
     }
-    let mut nid = NOTIFYICONDATAW {
+    let nid = NOTIFYICONDATAW {
         cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
         hWnd: hwnd,
         uID: 1,
