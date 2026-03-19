@@ -796,7 +796,7 @@ fn run() -> Result<(), GeodesicError> {
         // Apply reload flash or normal background.
         if reload_flash_timer > 0.0 {
             reload_flash_timer -= frame_dt_secs;
-            let t = (reload_flash_timer / 0.5).min(1.0).max(0.0);
+            let t = (reload_flash_timer / 0.5).clamp(0.0, 1.0);
             let flash_r = base_r * (1.0 - t as f64) + 0.3 * t as f64;
             let flash_g = base_g * (1.0 - t as f64) + 0.3 * t as f64;
             let flash_b = base_b * (1.0 - t as f64) + 0.8 * t as f64;
