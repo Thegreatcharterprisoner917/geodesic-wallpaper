@@ -5,328 +5,343 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust 1.75+](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 
-A real-time animated desktop wallpaper for Windows that renders families of
-geodesics flowing across parameterized surfaces. Geodesics are integrated with
-a fourth-order Runge-Kutta (RK4) scheme using analytically computed Christoffel
-symbols. The window sits below all application windows via a Win32
-WM_WINDOWPOSCHANGING hook, leaving desktop icons fully accessible.
-
-Built with Rust, wgpu (DirectX 12 / Vulkan / Metal), and the windows crate for
-Win32 integration.
+**geodesic-wallpaper** is a real-time animated desktop wallpaper for Windows that renders families of geodesic curves flowing across parameterised Riemannian surfaces. Curves are integrated with a fourth-order Runge-Kutta (RK4) scheme using analytically-computed Christoffel symbols for twelve built-in surfaces (torus, sphere, saddle, catenoid, helicoid, hyperboloid, hyperbolic paraboloid, ellipsoid, Enneper, Klein bottle, Boy surface, torus knot). The window sits below all application windows via a Win32 WM_WINDOWPOSCHANGING hook so desktop icons remain fully accessible. Optional modules let you drive the animation from live financial market data and assign a different surface to each physical monitor.
 
 ---
 
-## Download
-
-Head to the [Releases](../../releases/latest) page and download
-`geodesic-wallpaper-windows.zip`. Extract it alongside `config.toml` and
-run `geodesic-wallpaper.exe`. No installer required.
-
-**Requirements:** Windows 10 or 11, any GPU with DirectX 12 or Vulkan support.
-
----
-
-## Architecture
-
-| Module | File | Responsibility |
-|--------|------|----------------|
-| `config` | `src/config.rs` | Load and hot-reload `config.toml`; parse CSS hex colours |
-| `error` | `src/error.rs` | Typed error enum covering all subsystems |
-| `surface` | `src/surface/` | `Surface` trait + 12 implementations (torus, sphere, saddle, catenoid, helicoid, hyperboloid, hyperbolic paraboloid, ellipsoid, Enneper, Klein bottle, Boy surface, torus knot) |
-| `geodesic` | `src/geodesic.rs` | RK4 integrator for the geodesic ODE using Christoffel symbols |
-| `interactive` | `src/interactive.rs` | Mouse event handling; geodesic shooting; screen-to-surface inverse parameterization |
-| `trail` | `src/trail.rs` | Fixed-capacity ring buffer with quadratic alpha fade |
-| `renderer` | `src/renderer/` | wgpu render pipelines (surface wireframe + trail lines) |
-| `renderer::camera` | `src/renderer/camera.rs` | Orbiting perspective camera |
-| `wallpaper` | `src/wallpaper.rs` | Win32 borderless window pinned below all app windows |
-| `gallery` | `src/gallery.rs` | Auto-cycle through surfaces in gallery mode |
-| `parameter_tuner` | `src/parameter_tuner.rs` | Runtime keyboard-driven parameter adjustment |
-| `main` | `src/main.rs` | Application entry point, message loop, hot-reload watcher |
+## What does it look like?
 
 ```
-config.toml
-    |
-    v
-+--------+     hot-reload      +------------------+
-| Config | -----------------> | SharedConfig      |
-+--------+   (notify watcher) | Arc<RwLock<...>>  |
-                               +------------------+
-                                        |
-                                        v
-                        +-----------------------------+
-                        | GeodesicEngine              |
-                        | - Surface trait (12 impls): |
-                        |   Torus, Sphere, Saddle,    |
-                        |   Catenoid, Helicoid,       |
-                        |   Hyperboloid, HypPara,     |
-                        |   Ellipsoid, Enneper,       |
-                        |   KleinBottle, BoySurface,  |
-                        |   TorusKnot                 |
-                        | - Geodesic: RK4 integrator  |
-                        | - Christoffel symbols       |
-                        +-----------------------------+
-                                        |
-                                        v
-                        +-----------------------------+
-                        | TrailRenderer               |
-                        | - TrailBuffer (ring buffer) |
-                        | - quadratic alpha fade      |
-                        +-----------------------------+
-                                        |
-                                        v
-                              +-----------------+
-                              | wgpu pipelines  |
-                              | (surface mesh + |
-                              |  trail lines)   |
-                              +-----------------+
-                                        |
-                                        v
-                        +-------------------------------+
-                        | Win32 WorkerW window          |
-                        | (HWND_BOTTOM, WS_POPUP,       |
-                        |  WM_WINDOWPOSCHANGING locked) |
-                        +-------------------------------+
+          . . . * * * * . . .
+       . *   __-------__   * .
+      * /  /    ~~~~    \  \ *
+     * |  | ((  .  .  )) |  | *
+     . |  |  \\  \_/  //  |  | .
+     * |  |   \\  |  //   |  | *
+      * \  \    ``---''    /  / *
+       . *   -----------   * .
+          . . . * * * * . . .
+
+  Geodesic curves flowing across a torus surface.
+  Each coloured trail fades from opaque at the head
+  to transparent at the tail (quadratic alpha decay).
 ```
+
+Surfaces range from the familiar torus and sphere to exotic objects like the non-orientable Klein bottle, the self-intersecting Enneper minimal surface, and the trefoil torus-knot tube.
 
 ---
 
-## Building from source
+## 5-minute quickstart
 
-**Requirements:** Rust stable (1.75 or later), Windows 10 or 11, a GPU with
-DirectX 12, Vulkan, or Metal support.
+### Binary (no build required)
+
+1. Download `geodesic-wallpaper-windows.zip` from the [Releases](../../releases/latest) page.
+2. Extract the ZIP — you will find `geodesic-wallpaper.exe` and a sample `config.toml`.
+3. Double-click `geodesic-wallpaper.exe`, or run from a terminal:
 
 ```powershell
-git clone https://github.com/Mattbusel/geodesic-wallpaper.git
-cd geodesic-wallpaper
-cargo build --release
-.\target\release\geodesic-wallpaper.exe
+.\geodesic-wallpaper.exe
 ```
 
-Place `config.toml` in the same directory as the executable. The application
-reloads the file automatically whenever it changes on disk. Press Ctrl+C in the
-terminal or close the process to stop.
+Requirements: Windows 10 or 11, any GPU with DirectX 12 or Vulkan support. No installer, no runtime dependencies.
 
-To run tests (no GPU required):
+### Quickstart with a named preset
 
 ```powershell
-cargo test --lib
+.\geodesic-wallpaper.exe --preset cosmic
+.\geodesic-wallpaper.exe --preset ocean
+.\geodesic-wallpaper.exe --preset ember
 ```
+
+See the [Scene Presets](#scene-presets) section for the full list.
 
 ---
 
 ## Configuration reference
 
-All fields are optional. Missing fields revert to the defaults listed below.
+All fields are optional. Missing fields revert to the defaults shown.
+
+Place `config.toml` in the same directory as the executable. The file is hot-reloaded automatically whenever it changes on disk — no restart required.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `surface` | string | `"torus"` | Surface to render — see surface table above |
-| `num_geodesics` | integer | `30` | Number of simultaneous geodesic curves |
-| `trail_length` | integer | `300` | Frames a trail persists before respawning |
-| `rotation_speed` | float | `0.001047` | Camera orbit speed in radians per second |
-| `color_palette` | string[] | 5 entries | CSS hex colour strings cycled across geodesics |
-| `torus_R` | float | `2.0` | Torus major radius (centre to tube centre) |
-| `torus_r` | float | `0.7` | Torus minor radius (tube radius) |
-| `time_step` | float | `0.016` | RK4 integration timestep in seconds per frame |
-| `catenoid_c` | float | `1.0` | Catenoid scale parameter |
-| `helicoid_c` | float | `1.0` | Helicoid pitch parameter |
-| `hyperboloid_a` | float | `1.0` | Hyperboloid semi-axis a |
-| `hyperboloid_b` | float | `1.0` | Hyperboloid semi-axis b |
-| `ellipsoid_a` | float | `2.0` | Ellipsoid semi-axis along x |
-| `ellipsoid_b` | float | `1.5` | Ellipsoid semi-axis along y |
-| `ellipsoid_c` | float | `1.0` | Ellipsoid semi-axis along z |
-| `hyperbolic_paraboloid_a` | float | `1.0` | Saddle+ semi-axis a |
-| `hyperbolic_paraboloid_b` | float | `1.0` | Saddle+ semi-axis b |
-| `camera_distance` | float | `6.0` | Camera distance from origin |
-| `camera_elevation` | float | `0.4` | Camera elevation in radians |
-| `camera_fov` | float | `0.8` | Vertical field-of-view in radians |
-| `show_wireframe` | bool | `true` | Render surface wireframe mesh |
-| `trail_fade_power` | float | `2.0` | Exponent for trail alpha fade (1=linear, 2=quadratic) |
-| `target_fps` | integer | `30` | Target frame rate |
-| `background_color` | string | `"#050510"` | Background clear colour |
-| `color_mode` | string | `"cycle"` | `"cycle"` or `"random"` colour assignment |
-| `gallery_mode` | bool | `false` | Auto-cycle through all surfaces |
-| `gallery_duration_s` | integer | `30` | Seconds per surface in gallery mode |
+| `surface` | string | `"torus"` | Surface to render. See [Supported Surfaces](#supported-surfaces). |
+| `num_geodesics` | integer | `30` | Number of simultaneous geodesic curves. |
+| `trail_length` | integer | `300` | Frames a trail persists before respawning. |
+| `rotation_speed` | float | `0.001047` | Camera orbit speed in radians per second. |
+| `color_palette` | string[] | 5 entries | CSS hex colour strings cycled across geodesics. |
+| `torus_R` | float | `2.0` | Torus major radius (centre to tube centre). |
+| `torus_r` | float | `0.7` | Torus minor radius (tube radius). |
+| `time_step` | float | `0.016` | RK4 integration timestep in seconds per frame. |
+| `catenoid_c` | float | `1.0` | Catenoid scale parameter. |
+| `helicoid_c` | float | `1.0` | Helicoid pitch parameter. |
+| `hyperboloid_a` | float | `1.0` | Hyperboloid semi-axis a. |
+| `hyperboloid_b` | float | `1.0` | Hyperboloid semi-axis b. |
+| `ellipsoid_a` | float | `2.0` | Ellipsoid semi-axis along x. |
+| `ellipsoid_b` | float | `1.5` | Ellipsoid semi-axis along y. |
+| `ellipsoid_c` | float | `1.0` | Ellipsoid semi-axis along z. |
+| `hyperbolic_paraboloid_a` | float | `1.0` | Saddle+ semi-axis a. |
+| `hyperbolic_paraboloid_b` | float | `1.0` | Saddle+ semi-axis b. |
+| `camera_distance` | float | `6.0` | Camera distance from origin. |
+| `camera_elevation` | float | `0.4` | Camera elevation in radians. |
+| `camera_fov` | float | `0.8` | Vertical field-of-view in radians. |
+| `show_wireframe` | bool | `true` | Render surface wireframe mesh. |
+| `trail_fade_power` | float | `2.0` | Exponent for trail alpha fade (1=linear, 2=quadratic). |
+| `target_fps` | integer | `30` | Target frame rate. |
+| `background_color` | string | `"#050510"` | Background clear colour as CSS hex. |
+| `color_mode` | string | `"cycle"` | `"cycle"` or `"random"` colour assignment. |
+| `gallery_mode` | bool | `false` | Auto-cycle through all surfaces. |
+| `gallery_duration_s` | integer | `30` | Seconds per surface in gallery mode. |
+| `lua_script` | string | — | Path to a Lua surface script (requires `--features lua`). |
+
+### Minimal config.toml example
 
 ```toml
-# Surface to render.
-# Accepted values: "torus", "sphere", "saddle".
-# Any other value falls back to "torus".
-# Default: "torus"
-surface = "torus"
-
-# Number of simultaneous geodesic curves.
-# Default: 30
-num_geodesics = 30
-
-# Number of frames a trail persists before being respawned.
-# Default: 300
-trail_length = 300
-
-# Camera orbit angular speed in radians per second.
-# 0.001047 is approximately one full revolution every 100 minutes.
-# Default: 0.001047
-rotation_speed = 0.001047
-
-# Trail color palette as CSS hex strings (with or without leading '#').
-# Geodesics cycle through the list in order.
-# Default: five entries from blue to gold to pink.
-color_palette = ["#4488FF", "#88DDFF", "#FFD700", "#88FF88", "#FF88CC"]
-
-# Torus major radius: distance from the center of the torus to the center
-# of the tube.
-# Default: 2.0
-torus_R = 2.0
-
-# Torus minor radius: radius of the tube.
-# Default: 0.7
-torus_r = 0.7
-
-# RK4 integration time step in seconds per frame.
-# Values above 0.02 can cause visible trajectory drift on a small torus.
-# Default: 0.016
-time_step = 0.016
+surface          = "torus"
+num_geodesics    = 30
+trail_length     = 300
+rotation_speed   = 0.001047
+background_color = "#050510"
+color_palette    = ["#4488FF", "#88DDFF", "#FFD700", "#88FF88", "#FF88CC"]
 ```
 
 ---
 
-## How it works
+## Multi-monitor setup
 
-A geodesic on a Riemannian surface is a curve whose acceleration has no
-tangential component; equivalently, it satisfies the geodesic equation
-d^2x^k/dt^2 + Gamma^k_ij (dx^i/dt)(dx^j/dt) = 0, where Gamma^k_ij are the
-Christoffel symbols of the metric. Each symbol is computed analytically from
-the first and second fundamental forms of the surface, avoiding finite-difference
-approximations and the numerical noise they introduce. For the torus the metric
-is diagonal (the parameterization is orthogonal), which collapses the Christoffel
-computation to two non-zero components. The sphere and saddle use the full
-symmetric formula.
+When you have more than one physical monitor connected, `multi_monitor::MultiMonitorManager` assigns a different surface and colour scheme to each display automatically.
 
-The ODE is advanced with a classical fourth-order Runge-Kutta integrator. At
-each frame the integrator evaluates the Christoffel symbols at four intermediate
-positions and combines the results with the standard 1/6-2/6-2/6-1/6 weights.
-After each step the velocity is renormalized to unit metric speed
-(g_ij du^i du^j = 1) to suppress the slow drift caused by floating-point
-truncation over hundreds of frames. This is correct because the geodesic
-equation preserves metric speed exactly; renormalization merely restores the
-invariant that the integrator breaks weakly.
+### How it works
 
-Each geodesic leaves a trail stored in a fixed-capacity ring buffer. When a new
-position is pushed, the oldest is silently overwritten. At render time the buffer
-is iterated from oldest to newest and each vertex is assigned an alpha value
-equal to (i / N)^2, producing a quadratic fade from transparent at the tail to
-opaque at the head. The ring buffer never grows or reallocates after
-initialization, so the per-frame allocation pressure is zero.
+At startup the manager enumerates monitors via Win32 `EnumDisplayMonitors`, then cycles through the twelve built-in surfaces in order — monitor 0 gets the torus, monitor 1 gets the sphere, and so on.
+
+### Configure via `config.toml`
+
+The simplest option is to launch with `--preset` per monitor from separate instances, or define per-monitor overrides programmatically:
+
+```rust
+use geodesic_wallpaper::multi_monitor::{MonitorConfig, MultiMonitorManager};
+
+let manager = MultiMonitorManager::from_config(vec![
+    MonitorConfig {
+        monitor_index: 0,
+        surface: "torus".into(),
+        color_scheme: "cosmic".into(),
+        geodesic_count: 35,
+        speed: 1.0,
+    },
+    MonitorConfig {
+        monitor_index: 1,
+        surface: "sphere".into(),
+        color_scheme: "ocean".into(),
+        geodesic_count: 25,
+        speed: 0.8,
+    },
+]);
+
+println!("{} monitors configured", manager.monitor_count());
+```
+
+### Defaults
+
+If no explicit configuration is provided, `MultiMonitorManager::new()` auto-assigns surfaces:
+
+| Monitor | Surface | Colour scheme |
+|---------|---------|---------------|
+| 0 | torus | cosmic |
+| 1 | sphere | ocean |
+| 2 | saddle | ember |
+| 3 | hyperboloid | forest |
+| 4 | klein\_bottle | aurora |
+| 5+ | cycles back | cycles back |
+
+---
+
+## Financial data driver
+
+The `finance_driver::FinanceDriver` maps OHLCV market data to geodesic animation parameters in real time.
+
+| Market signal | Geodesic parameter |
+|---------------|--------------------|
+| Realized volatility (stddev of log-returns) | `speed_multiplier` — geodesics accelerate in volatile markets |
+| Trend direction (OLS slope of close prices) | `theta_velocity` — positive in uptrends, negative in downtrends |
+| Normalized volume | `trail_width` and `phi_velocity` |
+| Trend mapped to \[0, 0.33\] | `color_hue` — red in downtrends, green in uptrends |
+
+### Push bars manually
+
+```rust
+use geodesic_wallpaper::finance_driver::{FinanceDriver, MarketBar};
+
+let mut driver = FinanceDriver::new(20); // 20-bar rolling window
+
+driver.push_bar(MarketBar {
+    open: 150.00, high: 152.30, low: 149.10, close: 151.80,
+    volume: 1_234_567.0, timestamp: 1_700_000_000,
+});
+
+let params = driver.compute_params();
+println!("Speed multiplier: {:.3}", params.speed_multiplier);
+println!("Trail width: {:.1}px", params.trail_width);
+println!("Color hue: {:.3}", params.color_hue);
+```
+
+### Load from CSV
+
+The CSV format is `timestamp,open,high,low,close,volume` with no header row. Lines starting with `#` are treated as comments.
+
+```rust
+use geodesic_wallpaper::finance_driver::FinanceDriver;
+
+let csv = std::fs::read_to_string("prices.csv").unwrap();
+let mut driver = FinanceDriver::new(50);
+let loaded = driver.load_csv(&csv);
+println!("Loaded {loaded} bars");
+
+let params = driver.compute_params();
+```
+
+Sample `prices.csv`:
+
+```csv
+# timestamp,open,high,low,close,volume
+1700000000,100.00,102.50,99.20,101.75,980000
+1700000060,101.75,103.00,101.00,102.40,1150000
+1700000120,102.40,102.80,100.50,100.90,870000
+```
+
+---
+
+## Scene presets
+
+The `scene_presets::PresetLibrary` ships with 10 built-in named configurations.
+
+| Name | Surface | Mood |
+|------|---------|------|
+| `cosmic` | torus | Deep-space: gold geodesics through an indigo void |
+| `ocean` | sphere | Ocean depths: cyan great-circle flows |
+| `ember` | saddle | Volcanic: orange-red streaks across a hyperbolic saddle |
+| `forest` | hyperboloid | Canopy: lush greens on a one-sheeted hyperboloid |
+| `aurora` | torus\_knot | Arctic: shimmering green-blue trefoil traces |
+| `neon` | klein\_bottle | City night: hot pink and electric blue on the Klein bottle |
+| `dusk` | ellipsoid | Twilight: rose-to-purple sweeps |
+| `ice` | catenoid | Crystal cave: steel-blue spirals around the catenoid waist |
+| `lava` | boy\_surface | Volcanic: molten yellow-red on Boy's surface |
+| `void` | enneper | Deep nothing: slow teal traces on the Enneper surface |
+
+### Use from command line
+
+```powershell
+.\geodesic-wallpaper.exe --preset aurora
+.\geodesic-wallpaper.exe --preset neon
+```
+
+### Use from code
+
+```rust
+use geodesic_wallpaper::scene_presets::PresetLibrary;
+
+let mut lib = PresetLibrary::with_defaults();
+
+// Navigate presets.
+let next = lib.next();
+println!("Switched to: {} — {}", next.name, next.description);
+
+// Look up by name.
+if let Some(p) = lib.by_name("cosmic") {
+    println!("Background: {}", p.background_hex());
+}
+```
 
 ---
 
 ## Supported surfaces
 
-All surfaces implement the `Surface` trait: `position()`, `normal()`, `metric()`, `christoffel()`, `wrap()`, `random_position()`, `random_tangent()`, and `mesh_vertices()`.  Christoffel symbols are analytic where tractable and numerical (finite-difference, h = 10⁻³) for the more complex immersions.
+All surfaces implement the `Surface` trait: `position()`, `normal()`, `metric()`, `christoffel()`, `wrap()`, `random_position()`, `random_tangent()`, and `mesh_vertices()`.
 
 | Surface | Config name | Curvature | Notes |
 |---------|-------------|-----------|-------|
-| Torus | `"torus"` | Mixed (positive outer rim, negative inner rim) | Ergodic irrational windings; analytic Christoffels |
+| Torus | `"torus"` | Mixed | Analytic Christoffels; ergodic irrational windings |
 | Sphere | `"sphere"` | Constant positive K = 1/R² | All geodesics are great circles |
-| Saddle | `"saddle"` | Zero (flat chart) | Geodesics are straight lines |
-| Catenoid | `"catenoid"` | Negative (minimal surface) | Geodesics spiral around the waist |
-| Helicoid | `"helicoid"` | Negative (minimal surface) | Conjugate to the catenoid; isometric deformation |
+| Saddle | `"saddle"` | Zero (flat chart) | Straight-line geodesics |
+| Catenoid | `"catenoid"` | Negative (minimal) | Geodesics spiral around the waist |
+| Helicoid | `"helicoid"` | Negative (minimal) | Isometric to catenoid |
 | Hyperboloid | `"hyperboloid"` | Negative | One-sheeted ruled quadric |
-| Hyperbolic paraboloid | `"hyperbolic_paraboloid"` | Negative (saddle-plus) | Doubly ruled; z = u²/a² − v²/b² |
-| Ellipsoid | `"ellipsoid"` | Positive (varying) | Three independent semi-axes a, b, c |
-| Enneper | `"enneper"` | Negative (minimal) | Complete minimal surface; total curvature −4π; self-intersects |
-| Klein bottle | `"klein_bottle"` | Non-orientable | Figure-8 immersion in ℝ³; u, v ∈ [0, 2π) |
-| Boy's surface | `"boy_surface"` | Non-orientable | RP² immersion with 3-fold symmetry (Apery form) |
-| Torus knot | `"torus_knot"` | Positive (tube) | Tube swept around a T(p,q) torus knot; default T(2,3) trefoil |
+| Hyperbolic paraboloid | `"hyperbolic_paraboloid"` | Negative | Doubly ruled; z = u²/a² − v²/b² |
+| Ellipsoid | `"ellipsoid"` | Positive (varying) | Three independent semi-axes |
+| Enneper | `"enneper"` | Negative (minimal) | Complete; total curvature −4π; self-intersects |
+| Klein bottle | `"klein_bottle"` | Non-orientable | Figure-8 immersion in ℝ³ |
+| Boy's surface | `"boy_surface"` | Non-orientable | RP² with 3-fold symmetry (Apery form) |
+| Torus knot | `"torus_knot"` | Positive (tube) | Default T(2,3) trefoil |
 
 ---
 
 ## Mouse and keyboard controls
 
-### Keyboard shortcuts
+### Keyboard
 
 | Key | Action |
 |-----|--------|
 | `S` | Cycle to next surface |
-| `+` / `=` | Increase rotation speed (×1.1) |
-| `-` | Decrease rotation speed (×0.9) |
+| `G` | Toggle gallery mode |
+| `LEFT` | Previous surface (gallery mode) |
+| `RIGHT` | Next surface (gallery mode) |
+| `+` / `=` | Increase rotation speed ×1.1 |
+| `-` | Decrease rotation speed ×0.9 |
 | `R` | Reset all geodesics |
 | `H` | Toggle FPS HUD overlay |
 | `[` | Select previous tunable parameter |
 | `]` | Select next tunable parameter |
+| `Shift+R` | Start / stop phase portrait recording |
 
-### Mouse controls (interactive geodesic shooting)
+### Mouse
 
 | Action | Effect |
 |--------|--------|
 | Left-click | Shoot a new geodesic from the clicked surface point |
-| Right-click | Remove all geodesics and reset to initial configuration |
-| Middle-click | Cycle to the next surface type |
-| Scroll up | Increase geodesic speed (×1.1 per notch) |
-| Scroll down | Decrease geodesic speed (×0.9 per notch) |
-
-The left-click handler maps screen coordinates to surface parameters via
-nearest-neighbour search over a 64×64 grid of surface samples projected into
-screen space.  The new geodesic starts with a random unit-speed tangent at the
-clicked point and adopts the current scroll-wheel speed multiplier.
+| Right-click | Remove all geodesics and reset |
+| Middle-click | Cycle to the next surface |
+| Scroll up | Increase geodesic speed ×1.1 per notch |
+| Scroll down | Decrease geodesic speed ×0.9 per notch |
 
 ---
 
-## Lua Custom Surfaces
+## Gallery mode
 
-When built with the optional `lua` feature flag, you can define entirely custom
-Riemannian surfaces by providing a Lua script.
+Gallery mode cycles through all surfaces automatically with a smooth cross-fade transition.
 
-### Enable the feature
+```toml
+gallery_mode       = true
+gallery_duration_s = 30
+```
+
+---
+
+## Lua custom surfaces
+
+Build with `--features lua` to define entirely custom Riemannian surfaces in Lua.
 
 ```powershell
 cargo build --release --features lua
 ```
 
-### Write a Lua script
-
-Create a file such as `my_surface.lua`:
-
 ```lua
--- Metric tensor components at parameter position (u, v).
--- All four components are required.
+-- my_surface.lua
 function metric(u, v)
-  return {
-    g_uu = 1.0,
-    g_uv = 0.0,
-    g_vu = 0.0,
-    g_vv = math.sin(u)^2,
-  }
-end
-
--- Optional: return Christoffel symbols directly.
--- If absent they are derived numerically via finite differences.
-function christoffel(u, v)
-  return {
-    g000=0.0, g001=0.0, g010=0.0, g011=0.0,
-    g100=0.0, g101=0.0, g110=0.0, g111=0.0,
-  }
+  return { g_uu=1.0, g_uv=0.0, g_vu=0.0, g_vv=math.sin(u)^2 }
 end
 ```
-
-### Point config.toml at the script
 
 ```toml
 surface    = "lua"
 lua_script = "my_surface.lua"
 ```
 
-The script is hot-reloaded whenever `config.toml` changes. If the Lua script
-produces an error or a degenerate metric, the surface automatically falls back
-to the default torus and a warning is printed to the console.
+The script is hot-reloaded whenever `config.toml` changes. Invalid scripts fall back to the torus.
 
 ---
 
-## Live Parameter Tuning
-
-Individual parameters can be adjusted while the wallpaper is running using
-keyboard shortcuts.  Declare tunable parameters in the `[tuning]` section of
-`config.toml`:
+## Live parameter tuning
 
 ```toml
 [tuning]
@@ -336,80 +351,62 @@ min     = 0.0
 max     = 0.1
 current = 0.001047
 step    = 0.0001
-
-[[tuning.parameters]]
-name    = "trail_fade_power"
-min     = 0.5
-max     = 5.0
-current = 2.0
-step    = 0.1
 ```
 
-### Keyboard shortcuts
-
-| Key | Action |
-|-----|--------|
-| `[` | Select previous parameter |
-| `]` | Select next parameter |
-| `-` | Decrease selected value by one step |
-| `=` | Increase selected value by one step |
-
-The current parameter name and value are shown as an overlay on the wallpaper.
-When the application exits, updated values are written back to `config.toml` so
-they persist across restarts.
+Use `[` / `]` to select a parameter and `-` / `=` to adjust its value live. Updated values are written back to `config.toml` on exit.
 
 ---
 
-## Phase Portrait Recording
+## Phase portrait recording
 
-Press **Shift+R** to start recording the geodesic animation. A sequence of PNG
-frames is saved to a temporary directory.  When recording stops (either because
-the time limit was reached or you press Shift+R again), the frames are assembled
-into a GIF and saved to `geodesic-recording.gif` in the current directory.
-
-Default settings: 10 seconds at 30 fps (300 frames). The window title shows
-recording status: `[REC 3s / 10s  90 frames]`.
-
-The recorder API is also available programmatically:
-
-```rust
-use geodesic_wallpaper::recorder::PhasePortraitRecorder;
-use std::path::PathBuf;
-
-let mut rec = PhasePortraitRecorder::new(1920, 1080, 30, 10,
-    PathBuf::from("my-recording.gif"));
-rec.start()?;
-// push RGBA frames from the render loop…
-rec.push_frame(&rgba_bytes)?;
-let output_path = rec.finish()?;
-```
+Press **Shift+R** to record. Frames are saved as PNGs and assembled into `geodesic-recording.gif` when recording stops. Default: 10 seconds at 30 fps.
 
 ---
 
-## Gallery Mode
+## Architecture
 
-Gallery mode cycles through all available mathematical surfaces automatically,
-displaying each one for a configurable duration with a smooth cross-fade
-transition between surfaces.
+| Module | Responsibility |
+|--------|----------------|
+| `config` | Load and hot-reload `config.toml`; parse CSS hex colours |
+| `error` | Typed error enum covering all subsystems |
+| `surface` | `Surface` trait + 12 implementations |
+| `geodesic` | RK4 integrator for the geodesic ODE |
+| `interactive` | Mouse event handling; geodesic shooting |
+| `trail` | Fixed-capacity ring buffer with quadratic alpha fade |
+| `renderer` | wgpu render pipelines (surface wireframe + trail lines) |
+| `wallpaper` | Win32 borderless window pinned below all app windows |
+| `gallery` | Auto-cycle through surfaces in gallery mode |
+| `parameter_tuner` | Runtime keyboard-driven parameter adjustment |
+| `recorder` | Phase portrait PNG/GIF recording |
+| `multi_monitor` | Per-monitor surface assignment and configuration |
+| `finance_driver` | Maps OHLCV market data to geodesic parameters |
+| `scene_presets` | Named scene configurations with sequential navigation |
+| `main` | Application entry point, message loop, hot-reload watcher |
 
-### Enable via config.toml
+---
 
-```toml
-gallery_mode       = true
-gallery_duration_s = 30     # seconds per surface (default: 30)
+## Building from source
+
+Requirements: Rust stable 1.75+, Windows 10 or 11, GPU with DirectX 12 or Vulkan support.
+
+```powershell
+git clone https://github.com/Mattbusel/geodesic-wallpaper.git
+cd geodesic-wallpaper
+cargo build --release
+.\target\release\geodesic-wallpaper.exe
 ```
 
-### Keyboard shortcuts
+To run tests (no GPU required):
 
-| Key | Action |
-|-----|--------|
-| `G` | Toggle gallery mode on/off |
-| `LEFT` | Skip to the previous surface |
-| `RIGHT` | Skip to the next surface |
+```powershell
+cargo test --lib
+```
 
-While gallery mode is active, the fade-out/fade-in transition takes
-approximately 0.75 seconds each way, giving a 1.5-second crossfade between
-surfaces.
+To build with Lua scripting support:
+
+```powershell
+cargo build --release --features lua
+```
 
 ---
 
@@ -417,14 +414,13 @@ surfaces.
 
 1. Fork the repository.
 2. Create a feature branch: `git checkout -b my-feature`.
-3. Ensure `cargo fmt`, `cargo clippy -- -D warnings`, and `cargo test` all pass.
-4. Open a pull request against `master`.
+3. Ensure `cargo fmt`, `cargo clippy -- -D warnings`, and `cargo test --lib` all pass.
+4. Open a pull request against `main`.
 
-CI enforces formatting, Clippy warnings-as-errors, the full test suite, and a
-release build before merging.
+CI enforces formatting, Clippy warnings-as-errors, the full test suite, and a release build before merging.
 
 ---
 
 ## License
 
-MIT -- see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
