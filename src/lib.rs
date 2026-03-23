@@ -3,14 +3,17 @@
 pub mod config;
 pub mod error;
 pub mod events;
+pub mod finance_driver;
 pub mod gallery;
 pub mod geodesic;
 pub mod interactive;
 #[cfg(feature = "lua")]
 pub mod lua_surface;
+pub mod multi_monitor;
 pub mod parameter_tuner;
 pub mod recorder;
 pub mod renderer;
+pub mod scene_presets;
 pub mod surface;
 pub mod trail;
 pub mod tray;
