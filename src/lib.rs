@@ -72,3 +72,5 @@ pub mod symmetry_art;
 pub mod flow_field_render;
 pub mod projection_art;
 pub mod iso_surface;
+pub mod generative_art;
+pub mod texture_synthesizer;
