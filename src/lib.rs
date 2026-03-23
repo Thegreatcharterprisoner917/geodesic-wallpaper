@@ -46,3 +46,5 @@ pub mod flow_field;
 pub mod wave_interference;
 pub mod cellular_automata_2d;
 pub mod projection;
+pub mod mandelbrot;
+pub mod terrain;
