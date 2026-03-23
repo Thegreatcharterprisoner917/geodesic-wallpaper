@@ -62,3 +62,5 @@ pub mod stereographic;
 pub mod origami;
 pub mod lissajous;
 pub mod reaction_diffusion_v2;
+pub mod voronoi_art;
+pub mod fractal_tree;
