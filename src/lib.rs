@@ -60,3 +60,5 @@ pub mod penrose;
 pub mod torus_mapping;
 pub mod stereographic;
 pub mod origami;
+pub mod lissajous;
+pub mod reaction_diffusion_v2;
