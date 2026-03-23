@@ -31,3 +31,5 @@ pub mod flow;
 pub mod timelapse;
 pub mod gradient;
 pub mod preview;
+pub mod tiling;
+pub mod fractal;

@@ -96,6 +96,22 @@ struct Args {
     /// and exit. Uses the current config (or defaults if no config.toml).
     #[arg(long)]
     preview: bool,
+
+    /// Tile shape to apply over the wallpaper: square, hex, triangular, rhombic.
+    #[arg(long, value_name = "SHAPE")]
+    tile: Option<String>,
+
+    /// Tile size in pixels (used with --tile).
+    #[arg(long, default_value_t = 32)]
+    tile_size: u32,
+
+    /// Fractal overlay type: mandelbrot, julia, burning-ship.
+    #[arg(long, value_name = "TYPE")]
+    fractal: Option<String>,
+
+    /// Blend factor for fractal overlay (0.0 = none, 1.0 = full). Default: 0.3.
+    #[arg(long, default_value_t = 0.3)]
+    fractal_blend: f32,
 }
 
 /// Surface names in cycle order.
@@ -395,6 +411,81 @@ fn main() {
         let app = TuiApp { params, width: 40, height: 20 };
         let _ = app.run();
         return;
+    }
+
+    // --tile: render a tiled pattern preview and print info
+    if let Some(ref tile_shape_str) = args.tile.clone() {
+        use geodesic_wallpaper::tiling::{TileGrid, TileRenderer, TileShape};
+        let shape = match tile_shape_str.as_str() {
+            "hex" | "hexagonal" => TileShape::Hexagonal,
+            "triangular" => TileShape::Triangular,
+            "rhombic" => TileShape::Rhombic,
+            _ => TileShape::Square,
+        };
+        let tile_size = args.tile_size.max(1);
+        let w = 256u32;
+        let h = 256u32;
+        let grid = TileGrid::new(shape, w, h, tile_size);
+        let pixels = TileRenderer::render(
+            &grid,
+            |cell| {
+                let r = ((cell.col.rem_euclid(8) as u8) * 32).saturating_add(64);
+                let g = ((cell.row.rem_euclid(8) as u8) * 32).saturating_add(64);
+                let b = 128u8;
+                [r, g, b]
+            },
+            w,
+            h,
+        );
+        println!("[tile] shape: {}", tile_shape_str);
+        println!("[tile] tile_size: {}", tile_size);
+        println!("[tile] canvas: {}x{}", w, h);
+        println!("[tile] total pixels: {}", pixels.len());
+        // Sample a few cells
+        for &(px, py) in &[(0u32, 0u32), (tile_size, 0), (0, tile_size)] {
+            if px < w && py < h {
+                let cell = grid.cell_at(px, py);
+                let neighbors = grid.neighbors(&cell);
+                println!(
+                    "  cell({},{}) center=({:.1},{:.1}) neighbors={}",
+                    cell.col, cell.row, cell.center_x, cell.center_y,
+                    neighbors.len()
+                );
+            }
+        }
+    }
+
+    // --fractal: render a fractal overlay preview and print info
+    if let Some(ref fractal_str) = args.fractal.clone() {
+        use geodesic_wallpaper::fractal::{FractalOverlay, FractalRenderer, FractalType};
+        let fractal = match fractal_str.as_str() {
+            "julia" => FractalType::Julia { c_re: -0.7, c_im: 0.27 },
+            "burning-ship" => FractalType::BurningShip,
+            _ => FractalType::Mandelbrot,
+        };
+        let w = 256u32;
+        let h = 256u32;
+        let field = FractalRenderer::render(&fractal, w, h, -0.5, 0.0, 1.0, 128);
+        let base: Vec<[u8; 3]> = field
+            .iter()
+            .map(|&v| {
+                let c = (v * 200.0) as u8;
+                [c, c / 2, 255 - c]
+            })
+            .collect();
+        let blended = FractalOverlay::apply(&base, &field, args.fractal_blend);
+        println!("[fractal] type: {}", fractal_str);
+        println!("[fractal] blend: {:.2}", args.fractal_blend);
+        println!("[fractal] rendered {}x{} = {} pixels", w, h, field.len());
+        let nonzero = field.iter().filter(|&&v| v > 0.0).count();
+        println!("[fractal] escaped pixels: {}", nonzero);
+        println!("[fractal] inside-set pixels: {}", field.len() - nonzero);
+        println!("[fractal] blended pixels: {}", blended.len());
+        // Print sample pixel
+        if !blended.is_empty() {
+            let p = blended[blended.len() / 2];
+            println!("[fractal] sample pixel (center): rgb({},{},{})", p[0], p[1], p[2]);
+        }
     }
 
     // --gradient: generate gradient-mapped preview and print info
