@@ -1,5 +1,6 @@
 //! Library façade exposing all public modules for integration tests and `cargo doc`.
 
+pub mod audio_reactive;
 pub mod config;
 pub mod error;
 pub mod events;
@@ -7,10 +8,13 @@ pub mod finance_driver;
 pub mod gallery;
 pub mod geodesic;
 pub mod interactive;
+pub mod lod;
 #[cfg(feature = "lua")]
 pub mod lua_surface;
+pub mod morph;
 pub mod multi_monitor;
 pub mod parameter_tuner;
+pub mod particles;
 pub mod recorder;
 pub mod renderer;
 pub mod scene_presets;
