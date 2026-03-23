@@ -58,3 +58,5 @@ pub mod spirograph;
 pub mod escher;
 pub mod penrose;
 pub mod torus_mapping;
+pub mod stereographic;
+pub mod origami;
