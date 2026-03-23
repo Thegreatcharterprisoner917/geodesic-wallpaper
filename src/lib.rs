@@ -74,3 +74,5 @@ pub mod projection_art;
 pub mod iso_surface;
 pub mod generative_art;
 pub mod texture_synthesizer;
+pub mod animation_engine;
+pub mod color_theory;
