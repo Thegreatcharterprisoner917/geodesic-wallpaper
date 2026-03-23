@@ -33,3 +33,5 @@ pub mod gradient;
 pub mod preview;
 pub mod tiling;
 pub mod fractal;
+pub mod composer;
+pub mod noise;
