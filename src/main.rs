@@ -112,6 +112,16 @@ struct Args {
     /// Blend factor for fractal overlay (0.0 = none, 1.0 = full). Default: 0.3.
     #[arg(long, default_value_t = 0.3)]
     fractal_blend: f32,
+
+    /// Output format for wallpaper export: png, ppm, bmp, svg.
+    /// Example: --output-format ppm
+    #[arg(long, value_name = "FORMAT", default_value = "png")]
+    output_format: String,
+
+    /// Color space for gradient interpolation: rgb, hsv, lab, oklab.
+    /// Example: --colorspace oklab
+    #[arg(long, value_name = "COLORSPACE", default_value = "rgb")]
+    colorspace: String,
 }
 
 /// Surface names in cycle order.
@@ -534,6 +544,35 @@ fn main() {
         }
     }
 
+    // --colorspace: demonstrate color space conversions on a sample gradient
+    if args.colorspace != "rgb" {
+        use geodesic_wallpaper::colorspace::{ColorInterpolator, Rgb};
+        let a = Rgb { r: 255, g: 0, b: 0 };
+        let b = Rgb { r: 0, g: 0, b: 255 };
+        let steps = 8usize;
+        println!("[colorspace] interpolating red → blue in {} space ({} steps)", args.colorspace, steps);
+        for i in 0..steps {
+            let t = i as f32 / (steps - 1) as f32;
+            let c = match args.colorspace.to_lowercase().as_str() {
+                "hsv" => ColorInterpolator::lerp_hsv(a, b, t),
+                "oklab" => ColorInterpolator::lerp_oklab(a, b, t),
+                "lab" => {
+                    use geodesic_wallpaper::colorspace::{rgb_to_lab, lab_to_rgb, Lab};
+                    let la = rgb_to_lab(a);
+                    let lb = rgb_to_lab(b);
+                    let lm = Lab {
+                        l: la.l + (lb.l - la.l) * t,
+                        a: la.a + (lb.a - la.a) * t,
+                        b: la.b + (lb.b - la.b) * t,
+                    };
+                    lab_to_rgb(lm)
+                }
+                _ => ColorInterpolator::lerp_rgb(a, b, t),
+            };
+            println!("  t={:.3} rgb({},{},{})", t, c.r, c.g, c.b);
+        }
+    }
+
     // --animate: export a headless animation sequence of PNG frames
     if args.animate {
         use geodesic_wallpaper::animation::{
@@ -713,17 +752,51 @@ fn run_headless(args: &Args, cfg: &Config) -> Result<(), GeodesicError> {
     // Render to offscreen texture and read back pixels.
     let pixels = renderer.render_to_texture(&offscreen_tex, &all_verts, &seg_lens)?;
 
-    // Save as PNG.
-    image::save_buffer(
-        &args.output,
-        &pixels,
-        width,
-        height,
-        image::ColorType::Rgba8,
-    )
-    .map_err(|e| GeodesicError::render(format!("image save failed: {e}")))?;
+    // Determine output format from --output-format flag.
+    let out_format_str = args.output_format.to_lowercase();
+    let use_custom_format = matches!(out_format_str.as_str(), "ppm" | "bmp" | "svg");
 
-    tracing::info!(path = %args.output, "screenshot saved");
+    if use_custom_format {
+        use geodesic_wallpaper::export::{ExportFormat, ImageExporter};
+        // Convert RGBA pixels to RGB triplets
+        let rgb_pixels: Vec<[u8; 3]> = pixels
+            .chunks(4)
+            .map(|c| [c[0], c[1], c[2]])
+            .collect();
+        let fmt = match out_format_str.as_str() {
+            "ppm" => ExportFormat::Ppm,
+            "bmp" => ExportFormat::Bmp,
+            "svg" => ExportFormat::Svg,
+            _ => ExportFormat::Png,
+        };
+        let path = std::path::Path::new(&args.output);
+        match ImageExporter::export(&rgb_pixels, width, height, fmt, path) {
+            Ok(stats) => {
+                tracing::info!(
+                    path = %args.output,
+                    format = ?fmt,
+                    bytes = stats.bytes_written,
+                    elapsed_ms = stats.elapsed_ms,
+                    "screenshot saved"
+                );
+            }
+            Err(e) => {
+                return Err(GeodesicError::render(format!("export failed: {e}")));
+            }
+        }
+    } else {
+        // Default: save as PNG using the image crate.
+        image::save_buffer(
+            &args.output,
+            &pixels,
+            width,
+            height,
+            image::ColorType::Rgba8,
+        )
+        .map_err(|e| GeodesicError::render(format!("image save failed: {e}")))?;
+        tracing::info!(path = %args.output, "screenshot saved");
+    }
+
     Ok(())
 }
 

@@ -812,6 +812,88 @@ let pixels: Vec<[u8; 3]> = GradientTexture::generate(
 
 ---
 
+## Color Spaces (`src/colorspace.rs`)
+
+Full color space conversion and interpolation library — RGB, HSV, CIE Lab (D65), and Oklab.
+
+```rust
+use geodesic_wallpaper::colorspace::{
+    Rgb, Hsv, Lab, Oklab,
+    rgb_to_hsv, hsv_to_rgb,
+    rgb_to_lab, lab_to_rgb,
+    rgb_to_oklab, oklab_to_rgb,
+    ColorInterpolator,
+};
+
+let red = Rgb { r: 255, g: 0, b: 0 };
+let blue = Rgb { r: 0, g: 0, b: 255 };
+
+// Conversions
+let hsv = rgb_to_hsv(red);           // Hsv { h: 0.0, s: 1.0, v: 1.0 }
+let back = hsv_to_rgb(hsv);          // Rgb { r: 255, g: 0, b: 0 }
+
+let lab = rgb_to_lab(red);           // CIE Lab D65
+let ok  = rgb_to_oklab(red);         // Oklab perceptual
+
+// Color space interpolation
+let mid_rgb   = ColorInterpolator::lerp_rgb(red, blue, 0.5);   // sRGB blend
+let mid_hsv   = ColorInterpolator::lerp_hsv(red, blue, 0.5);   // hue-aware (shortest arc)
+let mid_oklab = ColorInterpolator::lerp_oklab(red, blue, 0.5); // perceptually uniform
+```
+
+**CLI:** `--colorspace oklab` — demonstrates interpolation on a red→blue gradient. Works with `rgb`, `hsv`, `lab`, `oklab`.
+
+**Supported conversions:**
+- `rgb_to_hsv` / `hsv_to_rgb` — hue-aware shortest-arc interpolation
+- `rgb_to_lab` / `lab_to_rgb` — via D65 XYZ white point
+- `rgb_to_oklab` / `oklab_to_rgb` — Björn Ottosson's matrix (perceptually uniform)
+- `ColorInterpolator::lerp_rgb`, `lerp_hsv`, `lerp_oklab`
+
+---
+
+## Export Formats (`src/export.rs`)
+
+Export wallpaper images in PNG, PPM (P6 binary), 24-bit BMP, and SVG formats.
+
+```rust
+use geodesic_wallpaper::export::{ExportFormat, ImageExporter};
+use std::path::Path;
+
+// Generate some pixel data (row-major, RGB triplets)
+let width = 800u32;
+let height = 600u32;
+let pixels: Vec<[u8; 3]> = (0..width * height)
+    .map(|i| [(i % 256) as u8, ((i / 256) % 256) as u8, 128])
+    .collect();
+
+// Export as PPM
+let stats = ImageExporter::export(
+    &pixels, width, height, ExportFormat::Ppm, Path::new("output.ppm")
+).unwrap();
+println!("wrote {} bytes in {}ms", stats.bytes_written, stats.elapsed_ms);
+
+// Export as BMP (no external deps — manual BITMAPFILEHEADER + BITMAPINFOHEADER)
+ImageExporter::export(&pixels, width, height, ExportFormat::Bmp, Path::new("output.bmp")).unwrap();
+
+// Export as SVG (rect elements per tile cell)
+ImageExporter::export(&pixels, width, height, ExportFormat::Svg, Path::new("output.svg")).unwrap();
+
+// Export as PNG (stdlib-only encoder shared with animation.rs)
+ImageExporter::export(&pixels, width, height, ExportFormat::Png, Path::new("output.png")).unwrap();
+```
+
+**CLI:** `--output-format png|ppm|bmp|svg` — selects the export format for headless screenshots.
+
+**Format details:**
+- `Ppm`: `P6 {width} {height} 255\n{binary RGB data}` — trivially simple, universally readable
+- `Bmp`: 24-bit BMP with BITMAPFILEHEADER + BITMAPINFOHEADER, BGR byte order, bottom-up rows
+- `Svg`: `<rect>` elements with fill colors; 8×8 tile size for large images to keep file size manageable
+- `Png`: stdlib-only DEFLATE-stored encoder (no external PNG crate needed in export path)
+
+`ExportStats { bytes_written, format, width, height, elapsed_ms }` is returned on success.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.

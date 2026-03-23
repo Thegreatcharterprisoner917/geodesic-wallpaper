@@ -35,3 +35,5 @@ pub mod tiling;
 pub mod fractal;
 pub mod composer;
 pub mod noise;
+pub mod colorspace;
+pub mod export;
