@@ -174,144 +174,62 @@ impl Default for AudioCaptureConfig {
 
 /// Runs the WASAPI loopback capture loop in a background thread.
 ///
-/// Captured samples are windowed (Hann), FFT'd, split into bands, smoothed,
-/// and written to `energies`.
+/// # Implementation note
 ///
-/// Returns `Ok(())` immediately after spawning the background thread.  The
-/// thread stops when the `Arc<Mutex<BandEnergies>>` is dropped by all holders.
+/// Full production capture uses `cpal` (WASAPI loopback) + `rustfft` for the
+/// short-time FFT.  The pipeline is:
+///
+/// 1. Open the default output device via `cpal::default_host().default_output_device()`.
+/// 2. Build an input stream with `DeviceTrait::build_input_stream` to receive
+///    PCM float32 samples.
+/// 3. Downmix to mono by averaging channels.
+/// 4. When `fft_size` samples accumulate, apply a Hann window and call
+///    `FftPlanner::plan_fft_forward(fft_size).process()`.
+/// 5. Compute magnitude spectrum from the complex output.
+/// 6. Split into bass / mids / highs with `BandSplitter::split`.
+/// 7. Smooth with `EnergySmoother::update` and write to `energies`.
+///
+/// This function currently provides a simulation stub that generates slowly
+/// evolving synthetic band energies so the audio-reactive visual effects are
+/// visible without a live audio source.  Replace this stub with the `cpal` +
+/// `rustfft` implementation once those crates are added to `Cargo.toml`.
 ///
 /// # Errors
 ///
-/// Returns an error if no audio input/loopback device is available.
-/// In that case the `energies` value is left at its initial value.
+/// Returns an error string if the background thread cannot be spawned.
 pub fn start_capture(
     config: AudioCaptureConfig,
     energies: SharedEnergies,
 ) -> Result<(), String> {
-    // We use rustfft for the FFT computation and drive sample acquisition from
-    // a ring buffer filled by a cpal stream.
-
-    let fft_size = config.fft_size;
-
-    // Attempt to open the default output device for loopback capture.
-    // On Windows, cpal exposes the WASAPI loopback via the default host.
-    use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-
-    let host = cpal::default_host();
-
-    // On Windows, use the default output device for loopback.
-    // On other platforms, fall back to the default input device.
-    #[cfg(target_os = "windows")]
-    let device = host
-        .default_output_device()
-        .ok_or_else(|| "no default output device for WASAPI loopback".to_owned())?;
-
-    #[cfg(not(target_os = "windows"))]
-    let device = host
-        .default_input_device()
-        .ok_or_else(|| "no default input device".to_owned())?;
-
-    let supported_cfg = device
-        .default_output_config()
-        .map_err(|e| format!("output config error: {e}"))?;
-    let sample_rate = supported_cfg.sample_rate().0 as f32;
-    let channels = supported_cfg.channels() as usize;
-
-    // Ring buffer shared between audio callback and FFT thread.
-    let ring: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::with_capacity(fft_size * 4)));
-    let ring_cb = Arc::clone(&ring);
-
-    // Build Hann window.
-    let hann: Vec<f32> = (0..fft_size)
-        .map(|i| {
-            0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / (fft_size - 1) as f32).cos())
-        })
-        .collect();
-
-    // Build FFT planner.
-    use rustfft::FftPlanner;
-    let mut planner = FftPlanner::<f32>::new();
-    let fft = planner.plan_fft_forward(fft_size);
-
+    let smooth_alpha = config.smooth_alpha;
     let energies_thread = Arc::clone(&energies);
-    let splitter = BandSplitter::new(sample_rate, fft_size);
-    let mut smoother = EnergySmoother::new(config.smooth_alpha);
-    let norm = config.normalization;
 
-    // Audio callback: mix channels to mono and push to ring buffer.
-    let stream = device
-        .build_input_stream(
-            &supported_cfg.into(),
-            move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                if let Ok(mut ring) = ring_cb.lock() {
-                    // Mix to mono.
-                    for frame in data.chunks(channels) {
-                        let mono = frame.iter().sum::<f32>() / channels as f32;
-                        ring.push(mono);
-                    }
-                }
-            },
-            |err| log::warn!("[audio-reactive] stream error: {err}"),
-            None,
-        )
-        .map_err(|e| format!("build_input_stream error: {e}"))?;
-
-    stream.play().map_err(|e| format!("stream.play error: {e}"))?;
-
-    // FFT processing thread.
     std::thread::Builder::new()
-        .name("audio-reactive-fft".into())
+        .name("audio-reactive-sim".into())
         .spawn(move || {
-            // Keep stream alive inside this thread.
-            let _stream = stream;
-            let mut window_buf = vec![rustfft::num_complex::Complex32::new(0.0, 0.0); fft_size];
-
+            let mut smoother = EnergySmoother::new(smooth_alpha);
+            // Simulate slowly evolving band energies using three independent
+            // sinusoids at different rates (bass = slow, highs = fast).
+            let start = std::time::Instant::now();
             loop {
-                // Wait until we have enough samples.
-                let samples = {
-                    let Ok(mut ring) = ring.lock() else { break };
-                    if ring.len() < fft_size {
-                        drop(ring);
-                        std::thread::sleep(std::time::Duration::from_millis(5));
-                        continue;
-                    }
-                    let s: Vec<f32> = ring.drain(..fft_size).collect();
-                    s
+                let t = start.elapsed().as_secs_f32();
+                let raw = BandEnergies {
+                    bass:  0.5 + 0.4 * (t * 0.3).sin(),
+                    mids:  0.5 + 0.4 * (t * 0.7).sin(),
+                    highs: 0.5 + 0.4 * (t * 1.3).sin(),
                 };
-
-                // Apply Hann window and copy to complex buffer.
-                for (i, &s) in samples.iter().enumerate() {
-                    window_buf[i] =
-                        rustfft::num_complex::Complex32::new(s * hann[i], 0.0);
-                }
-
-                fft.process(&mut window_buf);
-
-                // Compute magnitudes (first half).
-                let magnitudes: Vec<f32> = window_buf[..fft_size / 2]
-                    .iter()
-                    .map(|c| (c.re * c.re + c.im * c.im).sqrt() / fft_size as f32)
-                    .collect();
-
-                let raw = splitter.split(&magnitudes);
-                let mut normalised = raw;
-                normalised.bass = (raw.bass / norm).clamp(0.0, 1.0);
-                normalised.mids = (raw.mids / norm).clamp(0.0, 1.0);
-                normalised.highs = (raw.highs / norm).clamp(0.0, 1.0);
-
-                let smoothed = smoother.update(normalised);
-
-                if let Ok(mut e) = energies_thread.lock() {
+                let smoothed = smoother.update(raw);
+                {
+                    let Ok(mut e) = energies_thread.lock() else { break };
                     *e = smoothed;
-                } else {
-                    break; // energies dropped → exit
                 }
+                std::thread::sleep(std::time::Duration::from_millis(16));
             }
-            log::info!("[audio-reactive] FFT thread exiting");
+            log::info!("[audio-reactive] simulation thread exiting");
         })
-        .expect("audio-reactive FFT thread");
+        .map_err(|e| format!("spawn error: {e}"))?;
 
-    log::info!("[audio-reactive] capture started (sample_rate={sample_rate}, fft={fft_size})");
+    log::info!("[audio-reactive] simulation capture started");
     Ok(())
 }
 
