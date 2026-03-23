@@ -5,6 +5,7 @@ pub mod error;
 pub mod events;
 pub mod gallery;
 pub mod geodesic;
+pub mod interactive;
 #[cfg(feature = "lua")]
 pub mod lua_surface;
 pub mod parameter_tuner;

@@ -17,7 +17,7 @@
 //!
 //! Frame encoding uses the `image` crate (already a dependency).
 
-use image::{ImageBuffer, Rgba, RgbaImage};
+use image::{ImageBuffer, RgbaImage};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -319,6 +319,7 @@ pub fn encode_to_gif(frames_dir: &Path, output: &Path, fps: u32) -> Result<(), R
 #[cfg(test)]
 mod tests {
     use super::*;
+    use image::Rgba;
     use tempfile::tempdir;
 
     fn make_recorder(w: u32, h: u32) -> PhasePortraitRecorder {

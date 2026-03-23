@@ -32,12 +32,15 @@ run `geodesic-wallpaper.exe`. No installer required.
 |--------|------|----------------|
 | `config` | `src/config.rs` | Load and hot-reload `config.toml`; parse CSS hex colours |
 | `error` | `src/error.rs` | Typed error enum covering all subsystems |
-| `surface` | `src/surface/` | `Surface` trait + `Torus`, `Sphere`, `Saddle` implementations |
+| `surface` | `src/surface/` | `Surface` trait + 12 implementations (torus, sphere, saddle, catenoid, helicoid, hyperboloid, hyperbolic paraboloid, ellipsoid, Enneper, Klein bottle, Boy surface, torus knot) |
 | `geodesic` | `src/geodesic.rs` | RK4 integrator for the geodesic ODE using Christoffel symbols |
+| `interactive` | `src/interactive.rs` | Mouse event handling; geodesic shooting; screen-to-surface inverse parameterization |
 | `trail` | `src/trail.rs` | Fixed-capacity ring buffer with quadratic alpha fade |
 | `renderer` | `src/renderer/` | wgpu render pipelines (surface wireframe + trail lines) |
 | `renderer::camera` | `src/renderer/camera.rs` | Orbiting perspective camera |
 | `wallpaper` | `src/wallpaper.rs` | Win32 borderless window pinned below all app windows |
+| `gallery` | `src/gallery.rs` | Auto-cycle through surfaces in gallery mode |
+| `parameter_tuner` | `src/parameter_tuner.rs` | Runtime keyboard-driven parameter adjustment |
 | `main` | `src/main.rs` | Application entry point, message loop, hot-reload watcher |
 
 ```
@@ -52,8 +55,13 @@ config.toml
                                         v
                         +-----------------------------+
                         | GeodesicEngine              |
-                        | - Surface trait             |
-                        |   (Torus / Sphere / Saddle) |
+                        | - Surface trait (12 impls): |
+                        |   Torus, Sphere, Saddle,    |
+                        |   Catenoid, Helicoid,       |
+                        |   Hyperboloid, HypPara,     |
+                        |   Ellipsoid, Enneper,       |
+                        |   KleinBottle, BoySurface,  |
+                        |   TorusKnot                 |
                         | - Geodesic: RK4 integrator  |
                         | - Christoffel symbols       |
                         +-----------------------------+
@@ -112,7 +120,7 @@ All fields are optional. Missing fields revert to the defaults listed below.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `surface` | string | `"torus"` | Surface to render: `"torus"`, `"sphere"`, or `"saddle"` |
+| `surface` | string | `"torus"` | Surface to render — see surface table above |
 | `num_geodesics` | integer | `30` | Number of simultaneous geodesic curves |
 | `trail_length` | integer | `300` | Frames a trail persists before respawning |
 | `rotation_speed` | float | `0.001047` | Camera orbit speed in radians per second |
@@ -120,6 +128,25 @@ All fields are optional. Missing fields revert to the defaults listed below.
 | `torus_R` | float | `2.0` | Torus major radius (centre to tube centre) |
 | `torus_r` | float | `0.7` | Torus minor radius (tube radius) |
 | `time_step` | float | `0.016` | RK4 integration timestep in seconds per frame |
+| `catenoid_c` | float | `1.0` | Catenoid scale parameter |
+| `helicoid_c` | float | `1.0` | Helicoid pitch parameter |
+| `hyperboloid_a` | float | `1.0` | Hyperboloid semi-axis a |
+| `hyperboloid_b` | float | `1.0` | Hyperboloid semi-axis b |
+| `ellipsoid_a` | float | `2.0` | Ellipsoid semi-axis along x |
+| `ellipsoid_b` | float | `1.5` | Ellipsoid semi-axis along y |
+| `ellipsoid_c` | float | `1.0` | Ellipsoid semi-axis along z |
+| `hyperbolic_paraboloid_a` | float | `1.0` | Saddle+ semi-axis a |
+| `hyperbolic_paraboloid_b` | float | `1.0` | Saddle+ semi-axis b |
+| `camera_distance` | float | `6.0` | Camera distance from origin |
+| `camera_elevation` | float | `0.4` | Camera elevation in radians |
+| `camera_fov` | float | `0.8` | Vertical field-of-view in radians |
+| `show_wireframe` | bool | `true` | Render surface wireframe mesh |
+| `trail_fade_power` | float | `2.0` | Exponent for trail alpha fade (1=linear, 2=quadratic) |
+| `target_fps` | integer | `30` | Target frame rate |
+| `background_color` | string | `"#050510"` | Background clear colour |
+| `color_mode` | string | `"cycle"` | `"cycle"` or `"random"` colour assignment |
+| `gallery_mode` | bool | `false` | Auto-cycle through all surfaces |
+| `gallery_duration_s` | integer | `30` | Seconds per surface in gallery mode |
 
 ```toml
 # Surface to render.
@@ -195,11 +222,53 @@ initialization, so the per-frame allocation pressure is zero.
 
 ## Supported surfaces
 
-| Surface | Curvature | Behavior |
-|---------|-----------|----------|
-| torus   | Mixed (positive outer rim, negative inner rim) | Geodesics diverge on the inner rim and focus on the outer |
-| sphere  | Constant positive | All geodesics are great circles |
-| saddle  | Constant negative | Geodesics diverge exponentially |
+All surfaces implement the `Surface` trait: `position()`, `normal()`, `metric()`, `christoffel()`, `wrap()`, `random_position()`, `random_tangent()`, and `mesh_vertices()`.  Christoffel symbols are analytic where tractable and numerical (finite-difference, h = 10⁻³) for the more complex immersions.
+
+| Surface | Config name | Curvature | Notes |
+|---------|-------------|-----------|-------|
+| Torus | `"torus"` | Mixed (positive outer rim, negative inner rim) | Ergodic irrational windings; analytic Christoffels |
+| Sphere | `"sphere"` | Constant positive K = 1/R² | All geodesics are great circles |
+| Saddle | `"saddle"` | Zero (flat chart) | Geodesics are straight lines |
+| Catenoid | `"catenoid"` | Negative (minimal surface) | Geodesics spiral around the waist |
+| Helicoid | `"helicoid"` | Negative (minimal surface) | Conjugate to the catenoid; isometric deformation |
+| Hyperboloid | `"hyperboloid"` | Negative | One-sheeted ruled quadric |
+| Hyperbolic paraboloid | `"hyperbolic_paraboloid"` | Negative (saddle-plus) | Doubly ruled; z = u²/a² − v²/b² |
+| Ellipsoid | `"ellipsoid"` | Positive (varying) | Three independent semi-axes a, b, c |
+| Enneper | `"enneper"` | Negative (minimal) | Complete minimal surface; total curvature −4π; self-intersects |
+| Klein bottle | `"klein_bottle"` | Non-orientable | Figure-8 immersion in ℝ³; u, v ∈ [0, 2π) |
+| Boy's surface | `"boy_surface"` | Non-orientable | RP² immersion with 3-fold symmetry (Apery form) |
+| Torus knot | `"torus_knot"` | Positive (tube) | Tube swept around a T(p,q) torus knot; default T(2,3) trefoil |
+
+---
+
+## Mouse and keyboard controls
+
+### Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| `S` | Cycle to next surface |
+| `+` / `=` | Increase rotation speed (×1.1) |
+| `-` | Decrease rotation speed (×0.9) |
+| `R` | Reset all geodesics |
+| `H` | Toggle FPS HUD overlay |
+| `[` | Select previous tunable parameter |
+| `]` | Select next tunable parameter |
+
+### Mouse controls (interactive geodesic shooting)
+
+| Action | Effect |
+|--------|--------|
+| Left-click | Shoot a new geodesic from the clicked surface point |
+| Right-click | Remove all geodesics and reset to initial configuration |
+| Middle-click | Cycle to the next surface type |
+| Scroll up | Increase geodesic speed (×1.1 per notch) |
+| Scroll down | Decrease geodesic speed (×0.9 per notch) |
+
+The left-click handler maps screen coordinates to surface parameters via
+nearest-neighbour search over a 64×64 grid of surface samples projected into
+screen space.  The new geodesic starts with a random unit-speed tangent at the
+clicked point and adopts the current scroll-wheel speed multiplier.
 
 ---
 
