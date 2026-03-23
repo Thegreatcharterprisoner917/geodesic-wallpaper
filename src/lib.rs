@@ -50,3 +50,5 @@ pub mod mandelbrot;
 pub mod terrain;
 pub mod kaleidoscope;
 pub mod particle_system;
+pub mod islamic_patterns;
+pub mod quilts;
